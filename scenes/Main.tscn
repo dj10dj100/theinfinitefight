@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://vsbn0sxrs7wl"]
+
+[ext_resource type="PackedScene" path="res://scenes/Battlefield.tscn" id="1"]
+[ext_resource type="Script" uid="uid://0jfau1pquhyq" path="res://scripts/GameManager.gd" id="2"]
+
+[node name="Main" type="Node" unique_id=210088302]
+
+[node name="GameManager" type="Node" parent="." unique_id=2076563578]
+script = ExtResource("2")
+
+[node name="Battlefield" parent="." unique_id=1828731558 instance=ExtResource("1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.009567618, 0.3963716, 0)

@@ -1,0 +1,8 @@
+# Godot editor files — these are auto-generated and don't need to be saved
+.godot/
+
+# Export output folder (built files go here but aren't part of the source)
+build/
+
+# macOS junk files
+.DS_Store

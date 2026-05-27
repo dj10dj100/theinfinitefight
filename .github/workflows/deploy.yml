@@ -1,0 +1,115 @@
+name: 🚀 Build & Deploy to GitHub Pages
+
+# Run this every time code is pushed to main
+on:
+  push:
+    branches: [main]
+
+# GitHub Pages needs these permissions
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only allow one deploy to run at a time
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      # ── 1. Get the code ───────────────────────────────────────────────
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Install Godot 4.6 ─────────────────────────────────────────
+      - name: 🎮 Install Godot 4.6
+        run: |
+          GODOT_VERSION="4.6"
+          GODOT_RELEASE="stable"
+          GODOT_FILENAME="Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_linux.x86_64"
+
+          echo "Downloading Godot ${GODOT_VERSION}..."
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_RELEASE}/${GODOT_FILENAME}.zip"
+          unzip -q "${GODOT_FILENAME}.zip"
+          chmod +x "${GODOT_FILENAME}"
+          sudo mv "${GODOT_FILENAME}" /usr/local/bin/godot
+          echo "✅ Godot installed: $(godot --version)"
+
+      # ── 3. Install web export templates ──────────────────────────────
+      - name: 📦 Install Web Export Templates
+        run: |
+          GODOT_VERSION="4.6"
+          GODOT_RELEASE="stable"
+          TEMPLATE_FILENAME="Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_export_templates.tpz"
+          TEMPLATE_DIR="${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}"
+
+          echo "Downloading export templates..."
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_RELEASE}/${TEMPLATE_FILENAME}"
+
+          echo "Installing templates to ${TEMPLATE_DIR}..."
+          mkdir -p "${TEMPLATE_DIR}"
+          unzip -q "${TEMPLATE_FILENAME}" -d /tmp/godot_templates
+          mv /tmp/godot_templates/templates/* "${TEMPLATE_DIR}/"
+          echo "✅ Templates installed!"
+
+      # ── 4. Export the game as a web build ────────────────────────────
+      - name: 🏗️ Export Web Build
+        run: |
+          mkdir -p build/web
+          echo "Exporting game for web..."
+          godot --headless --path . --export-release "Web" build/web/index.html
+          echo "✅ Export complete! Files:"
+          ls -lh build/web/
+
+      # ── 5. Fix SharedArrayBuffer headers (needed for Godot web) ──────
+      # GitHub Pages doesn't send the right headers for Godot's web export
+      # by default, so we add a tiny service worker that fixes it.
+      - name: 🔧 Add SharedArrayBuffer header fix
+        run: |
+          cat > build/web/coi-serviceworker.js << 'EOF'
+          /* coi-serviceworker — makes SharedArrayBuffer work on GitHub Pages */
+          self.addEventListener("install", () => self.skipWaiting());
+          self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+          self.addEventListener("fetch", function(e) {
+            if (e.request.cache === "only-if-cached" && e.request.mode !== "same-origin") return;
+            e.respondWith(
+              fetch(e.request).then(function(response) {
+                if (response.status === 0) return response;
+                const newHeaders = new Headers(response.headers);
+                newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+                newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+                return new Response(response.body, {
+                  status: response.status,
+                  statusText: response.statusText,
+                  headers: newHeaders,
+                });
+              })
+            );
+          });
+          EOF
+
+          # Inject the service worker registration into the game's HTML
+          sed -i 's|<head>|<head>\n<script>if (!crossOriginIsolated) navigator.serviceWorker.register("coi-serviceworker.js");</script>|' build/web/index.html
+          echo "✅ SharedArrayBuffer fix applied!"
+
+      # ── 6. Upload build to GitHub Pages ──────────────────────────────
+      - name: ⚙️ Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: 📤 Upload build artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      # ── 7. Deploy! ───────────────────────────────────────────────────
+      - name: 🌐 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
