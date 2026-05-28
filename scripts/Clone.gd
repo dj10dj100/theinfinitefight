@@ -31,6 +31,9 @@ const CLONE_COLOUR = Color(0.30, 0.38, 0.16)
 # Stores all the mesh parts so we can flash them on hit
 var body_parts: Array = []
 
+# Shield — blocks this many hits before breaking
+var shield_hits: int = 0
+
 @onready var shoot_point = $ShootPoint
 @onready var mesh_instance = $MeshInstance3D
 
@@ -126,6 +129,9 @@ func handle_ai(delta):
 func shoot():
 	shoot_timer = get_shoot_cooldown()
 
+	# Play the right gunshot sound for the weapon!
+	SoundManager.play("shoot_" + active_weapon)
+
 	var bullet = bullet_scene.instantiate()
 	bullet.global_position = shoot_point.global_position
 	bullet.direction = -shoot_point.global_transform.basis.z.normalized()
@@ -182,8 +188,36 @@ func find_nearest_enemy() -> Node:
 # -----------------------------------------------
 # TAKING DAMAGE
 # -----------------------------------------------
+func activate_shield(hits: int):
+	shield_hits = hits
+	# Flash gold to show the shield is active
+	var shield_mat = StandardMaterial3D.new()
+	shield_mat.albedo_color = Color(1.0, 0.85, 0.0)
+	shield_mat.emission_enabled = true
+	shield_mat.emission = Color(0.8, 0.6, 0.0)
+	shield_mat.roughness = 0.1
+	for part in body_parts:
+		if is_instance_valid(part):
+			part.set_surface_override_material(0, shield_mat)
+
 func take_damage(amount: float):
+	# Shield blocks the hit!
+	if shield_hits > 0:
+		shield_hits -= 1
+		SoundManager.play("click")
+		print("🛡 Shield blocked the hit! ", shield_hits, " blocks left.")
+		# If shield just ran out, restore normal colour
+		if shield_hits == 0:
+			var normal_mat = StandardMaterial3D.new()
+			normal_mat.albedo_color = CLONE_COLOUR
+			normal_mat.roughness = 0.28
+			for part in body_parts:
+				if is_instance_valid(part):
+					part.set_surface_override_material(0, normal_mat)
+		return
+
 	health -= amount
+	SoundManager.play("hit")
 	print("Clone hit! Health left: ", health)
 
 	# Flash all parts white, then restore the olive green
@@ -207,6 +241,7 @@ func take_damage(amount: float):
 
 func die():
 	print("A clone has fallen!")
+	SoundManager.play("death")
 	get_parent().on_clone_died(self)
 	queue_free()
 

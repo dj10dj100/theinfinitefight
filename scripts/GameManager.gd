@@ -28,6 +28,13 @@ var all_weapons: Array = ["pistol", "revolver", "shotgun", "assault_rifle", "mac
 # Which weapons you've unlocked so far (starts with just pistol)
 var unlocked_weapons: Array = ["pistol"]
 
+# Which map to play on next (chosen on the Deploy Screen)
+# Options: "grassland", "jungle", "city", "snow"
+var selected_map: String = "grassland"
+
+# Leaderboard — top 10 scores saved as [{name, wins}]
+var leaderboard: Array = []
+
 # Called when the game starts
 func _ready():
 	print("Game Manager is ready!")
@@ -48,7 +55,24 @@ func add_win():
 	total_wins += 1
 	print("Total wins: ", total_wins)
 	check_for_new_unlock()
+	update_leaderboard()
 	save_player_data()
+
+# Add the player's current wins to the leaderboard if it's a top 10 score
+func update_leaderboard():
+	# Check if player already has an entry
+	var found = false
+	for entry in leaderboard:
+		if entry["name"] == player_name:
+			entry["wins"] = total_wins
+			found = true
+			break
+	if not found:
+		leaderboard.append({"name": player_name, "wins": total_wins})
+	# Sort by wins descending, keep top 10
+	leaderboard.sort_custom(func(a, b): return a["wins"] > b["wins"])
+	if leaderboard.size() > 10:
+		leaderboard.resize(10)
 
 # Every 5 wins, unlock the next weapon!
 func check_for_new_unlock():
@@ -67,7 +91,8 @@ func save_player_data():
 		"difficulty": difficulty,
 		"total_wins": total_wins,
 		"unlocked_weapons": unlocked_weapons,
-		"intro_seen": intro_seen
+		"intro_seen": intro_seen,
+		"leaderboard": leaderboard
 	}
 	var file = FileAccess.open("user://save_data.json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(save_data))
@@ -86,6 +111,7 @@ func load_player_data():
 			total_wins        = data.get("total_wins", 0)
 			unlocked_weapons  = data.get("unlocked_weapons", ["pistol"])
 			intro_seen        = data.get("intro_seen", false)
+			leaderboard       = data.get("leaderboard", [])
 			print("Welcome back, ", player_name, "! Wins: ", total_wins)
 	else:
 		print("No save found — new player!")

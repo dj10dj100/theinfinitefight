@@ -124,10 +124,75 @@ func build_ui():
 	info.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	info.set_anchor(SIDE_LEFT, 0.1);  info.set_anchor(SIDE_RIGHT,  0.9)
 	info.set_anchor(SIDE_TOP, 0);     info.set_anchor(SIDE_BOTTOM, 0)
-	info.offset_top = 310;            info.offset_bottom = 360
+	info.offset_top = 310;            info.offset_bottom = 352
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(info)
+
+	# ── SOUND SECTION ──────────────────────────────
+	var sound_heading = Label.new()
+	sound_heading.text = "🔊  Sound"
+	sound_heading.add_theme_font_size_override("font_size", 20)
+	sound_heading.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+	sound_heading.set_anchor(SIDE_LEFT, 0);  sound_heading.set_anchor(SIDE_RIGHT, 1)
+	sound_heading.set_anchor(SIDE_TOP, 0);   sound_heading.set_anchor(SIDE_BOTTOM, 0)
+	sound_heading.offset_top = 358;          sound_heading.offset_bottom = 388
+	sound_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sound_heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(sound_heading)
+
+	# Volume slider label
+	var vol_lbl = Label.new()
+	vol_lbl.text = "Volume:"
+	vol_lbl.add_theme_font_size_override("font_size", 16)
+	vol_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	vol_lbl.set_anchor(SIDE_LEFT, 0.2);  vol_lbl.set_anchor(SIDE_RIGHT, 0.35)
+	vol_lbl.set_anchor(SIDE_TOP, 0);     vol_lbl.set_anchor(SIDE_BOTTOM, 0)
+	vol_lbl.offset_top = 396;            vol_lbl.offset_bottom = 422
+	vol_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vol_lbl)
+
+	# Volume slider
+	var slider = HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.value = SoundManager.master_volume
+	slider.set_anchor(SIDE_LEFT, 0.35);  slider.set_anchor(SIDE_RIGHT, 0.8)
+	slider.set_anchor(SIDE_TOP, 0);      slider.set_anchor(SIDE_BOTTOM, 0)
+	slider.offset_top = 396;             slider.offset_bottom = 422
+	slider.value_changed.connect(func(v): SoundManager.set_volume(v))
+	add_child(slider)
+
+	# SFX on/off toggle
+	var sfx_btn = Button.new()
+	sfx_btn.text = "Sound Effects: " + ("ON ✅" if SoundManager.sfx_on else "OFF ❌")
+	sfx_btn.add_theme_font_size_override("font_size", 15)
+	sfx_btn.set_anchor(SIDE_LEFT, 0.2);  sfx_btn.set_anchor(SIDE_RIGHT, 0.5)
+	sfx_btn.set_anchor(SIDE_TOP, 0);     sfx_btn.set_anchor(SIDE_BOTTOM, 0)
+	sfx_btn.offset_top = 430;            sfx_btn.offset_bottom = 462
+	sfx_btn.pressed.connect(func():
+		SoundManager.sfx_on = not SoundManager.sfx_on
+		sfx_btn.text = "Sound Effects: " + ("ON ✅" if SoundManager.sfx_on else "OFF ❌")
+	)
+	add_child(sfx_btn)
+
+	# Music on/off toggle
+	var music_btn = Button.new()
+	music_btn.text = "Music: " + ("ON ✅" if SoundManager.music_on else "OFF ❌")
+	music_btn.add_theme_font_size_override("font_size", 15)
+	music_btn.set_anchor(SIDE_LEFT, 0.5);  music_btn.set_anchor(SIDE_RIGHT, 0.8)
+	music_btn.set_anchor(SIDE_TOP, 0);     music_btn.set_anchor(SIDE_BOTTOM, 0)
+	music_btn.offset_top = 430;            music_btn.offset_bottom = 462
+	music_btn.pressed.connect(func():
+		SoundManager.music_on = not SoundManager.music_on
+		music_btn.text = "Music: " + ("ON ✅" if SoundManager.music_on else "OFF ❌")
+		if not SoundManager.music_on:
+			SoundManager.stop_music()
+		else:
+			SoundManager.play_music("menu")
+	)
+	add_child(music_btn)
 
 	# Save button
 	var save_btn = Button.new()
@@ -137,8 +202,8 @@ func build_ui():
 	save_btn.set_anchor(SIDE_RIGHT, 0.7)
 	save_btn.set_anchor(SIDE_TOP,   0)
 	save_btn.set_anchor(SIDE_BOTTOM, 0)
-	save_btn.offset_top    = 375
-	save_btn.offset_bottom = 430
+	save_btn.offset_top    = 475
+	save_btn.offset_bottom = 530
 	save_btn.pressed.connect(_on_save_pressed)
 	add_child(save_btn)
 
@@ -150,12 +215,13 @@ func build_ui():
 	back_btn.set_anchor(SIDE_RIGHT, 0.65)
 	back_btn.set_anchor(SIDE_TOP,   0)
 	back_btn.set_anchor(SIDE_BOTTOM, 0)
-	back_btn.offset_top    = 438
-	back_btn.offset_bottom = 468
+	back_btn.offset_top    = 538
+	back_btn.offset_bottom = 568
 	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn"))
 	add_child(back_btn)
 
 func select_difficulty(diff: String, btn: Button):
+	SoundManager.play("click")
 	chosen_difficulty = diff
 	# Highlight selected, dim the rest
 	for key in difficulty_buttons:
@@ -163,6 +229,7 @@ func select_difficulty(diff: String, btn: Button):
 	btn.modulate = Color(0.3, 1.0, 0.45)
 
 func _on_save_pressed():
+	SoundManager.play("click")
 	if GameManager:
 		GameManager.difficulty = chosen_difficulty
 		GameManager.save_player_data()

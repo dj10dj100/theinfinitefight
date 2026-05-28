@@ -64,6 +64,8 @@ func _physics_process(delta):
 func shoot():
 	shoot_timer = 1.8  # Enemies fire a bit slower than your clones
 
+	SoundManager.play("shoot_" + weapon, -4.0)   # Slightly quieter than player shots
+
 	var bullet = bullet_scene.instantiate()
 	bullet.global_position = shoot_point.global_position
 	bullet.direction = -shoot_point.global_transform.basis.z.normalized()
@@ -87,6 +89,7 @@ func find_nearest_clone() -> Node:
 # -----------------------------------------------
 func take_damage(amount: float):
 	health -= amount
+	SoundManager.play("hit")
 	print("Enemy hit! Health left: ", health)
 
 	# Flash all parts white, then restore the tan colour
@@ -110,5 +113,6 @@ func take_damage(amount: float):
 
 func die():
 	print("An enemy has been defeated!")
+	SoundManager.play("death")
 	get_parent().on_enemy_died(self)
 	queue_free()

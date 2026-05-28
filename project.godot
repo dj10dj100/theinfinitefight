@@ -22,6 +22,8 @@ config/features=PackedStringArray("4.6", "Forward Plus")
 
 GameManager="*res://scripts/GameManager.gd"
 ArmyManBuilder="*res://scripts/ArmyManBuilder.gd"
+SoundManager="*res://scripts/SoundManager.gd"
+MapTheme="*res://scripts/MapTheme.gd"
 
 [display]
 

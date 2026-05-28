@@ -32,6 +32,7 @@ var buttons_container: VBoxContainer
 func _ready():
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	build_ui()
+	SoundManager.play_music("menu")
 
 func build_ui():
 	# Dark background
@@ -226,26 +227,49 @@ func build_fight_button():
 	# Friends button (bottom left)
 	var friends_btn = Button.new()
 	friends_btn.text = "👥  Friends"
-	friends_btn.add_theme_font_size_override("font_size", 16)
+	friends_btn.add_theme_font_size_override("font_size", 14)
 	friends_btn.set_anchor(SIDE_LEFT,   0); friends_btn.set_anchor(SIDE_RIGHT,  0)
 	friends_btn.set_anchor(SIDE_TOP,    1); friends_btn.set_anchor(SIDE_BOTTOM, 1)
-	friends_btn.offset_left = 10;  friends_btn.offset_right  = 118
-	friends_btn.offset_top  = -55; friends_btn.offset_bottom = -10
-	friends_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/FriendSystem.tscn"))
+	friends_btn.offset_left = 10;  friends_btn.offset_right  = 108
+	friends_btn.offset_top  = -55; friends_btn.offset_bottom = -30
+	friends_btn.pressed.connect(func():
+		SoundManager.play("click")
+		get_tree().change_scene_to_file("res://scenes/FriendSystem.tscn")
+	)
 	add_child(friends_btn)
 
-	# Settings button (next to Friends)
+	# Settings button
 	var settings_btn = Button.new()
 	settings_btn.text = "⚙  Settings"
-	settings_btn.add_theme_font_size_override("font_size", 16)
+	settings_btn.add_theme_font_size_override("font_size", 14)
 	settings_btn.set_anchor(SIDE_LEFT,   0); settings_btn.set_anchor(SIDE_RIGHT,  0)
 	settings_btn.set_anchor(SIDE_TOP,    1); settings_btn.set_anchor(SIDE_BOTTOM, 1)
-	settings_btn.offset_left = 122; settings_btn.offset_right  = 230
-	settings_btn.offset_top  = -55; settings_btn.offset_bottom = -10
-	settings_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/SettingsScreen.tscn"))
+	settings_btn.offset_left = 112; settings_btn.offset_right  = 220
+	settings_btn.offset_top  = -55; settings_btn.offset_bottom = -30
+	settings_btn.pressed.connect(func():
+		SoundManager.play("click")
+		get_tree().change_scene_to_file("res://scenes/SettingsScreen.tscn")
+	)
 	add_child(settings_btn)
 
-	# FIGHT button (bottom right, spanning most of the width)
+	# Leaderboard button
+	var lb_btn = Button.new()
+	lb_btn.text = "🏆  Scores"
+	lb_btn.add_theme_font_size_override("font_size", 14)
+	lb_btn.set_anchor(SIDE_LEFT,   0); lb_btn.set_anchor(SIDE_RIGHT,  0)
+	lb_btn.set_anchor(SIDE_TOP,    1); lb_btn.set_anchor(SIDE_BOTTOM, 1)
+	lb_btn.offset_left = 10;  lb_btn.offset_right  = 220
+	lb_btn.offset_top  = -27; lb_btn.offset_bottom = -4
+	lb_btn.pressed.connect(func():
+		SoundManager.play("click")
+		get_tree().change_scene_to_file("res://scenes/Leaderboard.tscn")
+	)
+	add_child(lb_btn)
+
+	# Map picker — choose your battlefield!
+	_build_map_picker()
+
+	# FIGHT button (bottom right)
 	var btn = Button.new()
 	btn.text = "⚔   FIGHT!"
 	btn.add_theme_font_size_override("font_size", 22)
@@ -256,10 +280,63 @@ func build_fight_button():
 	btn.pressed.connect(_on_fight_pressed)
 	add_child(btn)
 
+func _build_map_picker():
+	# A small row of map buttons above the fight button
+	var maps = [
+		{"key": "grassland", "label": "🌿"},
+		{"key": "jungle",    "label": "🌴"},
+		{"key": "city",      "label": "🏙"},
+		{"key": "snow",      "label": "❄️"},
+	]
+	var map_buttons: Dictionary = {}
+	var btn_w = 52
+	var gap   = 6
+
+	var heading = Label.new()
+	heading.text = "MAP:"
+	heading.add_theme_font_size_override("font_size", 13)
+	heading.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+	heading.set_anchor(SIDE_LEFT,   0); heading.set_anchor(SIDE_RIGHT,  0)
+	heading.set_anchor(SIDE_TOP,    1); heading.set_anchor(SIDE_BOTTOM, 1)
+	heading.offset_left = 240; heading.offset_right  = 295
+	heading.offset_top  = -95; heading.offset_bottom = -65
+	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(heading)
+
+	for i in range(maps.size()):
+		var m = maps[i]
+		var mb = Button.new()
+		mb.text = m["label"]
+		mb.add_theme_font_size_override("font_size", 18)
+		mb.custom_minimum_size = Vector2(btn_w, 28)
+		mb.set_anchor(SIDE_LEFT,   0); mb.set_anchor(SIDE_RIGHT,  0)
+		mb.set_anchor(SIDE_TOP,    1); mb.set_anchor(SIDE_BOTTOM, 1)
+		mb.offset_left   = 295 + i * (btn_w + gap)
+		mb.offset_right  = 295 + i * (btn_w + gap) + btn_w
+		mb.offset_top    = -95
+		mb.offset_bottom = -65
+		map_buttons[m["key"]] = mb
+
+		mb.pressed.connect(func():
+			SoundManager.play("click")
+			GameManager.selected_map = m["key"]
+			# Highlight selected map
+			for k in map_buttons:
+				map_buttons[k].modulate = Color(1, 1, 1)
+			mb.modulate = Color(0.3, 1.0, 0.45)
+		)
+		add_child(mb)
+
+	# Highlight the currently chosen map
+	var current = GameManager.selected_map if GameManager else "grassland"
+	if map_buttons.has(current):
+		map_buttons[current].modulate = Color(0.3, 1.0, 0.45)
+
 # -----------------------------------------------
 # SELECTING A WEAPON TYPE
 # -----------------------------------------------
 func select_weapon(weapon: String, btn: Button):
+	SoundManager.play("click")
 	selected_weapon = weapon
 	# Highlight selected, dim the rest
 	for w in weapon_buttons:
@@ -316,6 +393,7 @@ func place_clone(local_pos: Vector2, area_size: Vector2):
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	battlefield_area.add_child(lbl)
 
+	SoundManager.play("place_clone")
 	update_count()
 	print("Placed ", selected_weapon, " at ", pos)
 

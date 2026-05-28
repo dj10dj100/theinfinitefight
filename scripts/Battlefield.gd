@@ -30,6 +30,9 @@ func _ready():
 	# Wait one frame so the scene is fully loaded
 	await get_tree().process_frame
 
+	# Apply the chosen map theme (colours, sky, decorations)
+	MapTheme.apply(self)
+
 	# If the player came from the Deploy Screen, spawn their chosen clones
 	if game_manager and game_manager.deploy_data.size() > 0:
 		spawn_clones_from_deploy(game_manager.deploy_data)
@@ -45,9 +48,19 @@ func _ready():
 		enemies_on_field.append(node)
 	print("Difficulty: ", game_manager.difficulty if game_manager else "?", "  Enemy health x", health_mult)
 
+	# Every 10 wins, spawn a boss enemy!
+	if game_manager and game_manager.total_wins > 0 and game_manager.total_wins % 10 == 0:
+		spawn_boss()
+
 	# Start with the top-down view
 	top_down_camera.current = true
 	first_person_camera.current = false
+
+	# Start the battle music!
+	SoundManager.play_music("battle")
+
+	# Spawn power-ups every 12 seconds
+	_start_powerup_timer()
 
 	print("Battle started! Your clones: ", clones_on_field.size(), "  Enemies: ", enemies_on_field.size())
 
@@ -168,6 +181,7 @@ func trigger_last_stand():
 		return
 
 	last_stand_used = true
+	SoundManager.play("last_stand")
 	print("")
 	print("============================")
 	print("  *** THE LAST STAND! ***")
@@ -186,6 +200,57 @@ func trigger_last_stand():
 	controlled_clone = last_clone
 	last_clone.take_player_control()
 
+# -----------------------------------------------
+# SPAWN THE BOSS
+# -----------------------------------------------
+func spawn_boss():
+	var boss_scene = load("res://scenes/BossEnemy.tscn")
+	var boss = boss_scene.instantiate()
+	# Boss appears at the back of the enemy zone, centre
+	boss.position = Vector3(0, 0.1, 12)
+	# Scale health by difficulty too
+	boss.health = boss.health * get_enemy_health_multiplier()
+	add_child(boss)
+	enemies_on_field.append(boss)
+	print("⚠️  BOSS SPAWNED! Watch out!")
+
+# -----------------------------------------------
+# POWER-UPS — spawn one every 12 seconds
+# -----------------------------------------------
+func _start_powerup_timer():
+	var timer = Timer.new()
+	timer.wait_time = 12.0
+	timer.autostart = true
+	timer.timeout.connect(_spawn_random_powerup)
+	add_child(timer)
+
+func _spawn_random_powerup():
+	if battle_over:
+		return
+	# Pick a random spot in the middle of the field
+	var x = randf_range(-12.0, 12.0)
+	var z = randf_range(-8.0, 8.0)
+
+	var types = ["health", "speed", "shield"]
+	var chosen = types[randi() % types.size()]
+
+	var pu = load("res://scenes/PowerUp.tscn")
+	if pu == null:
+		# Build a power-up node directly if the scene doesn't exist yet
+		var node = Area3D.new()
+		node.set_script(load("res://scripts/PowerUp.gd"))
+		node.set("type", chosen)
+		node.position = Vector3(x, 0.5, z)
+		add_child(node)
+	else:
+		var inst = pu.instantiate()
+		inst.position = Vector3(x, 0.5, z)
+		if inst.has_method("set"):
+			inst.set("type", chosen)
+		add_child(inst)
+
+	print("⚡  Power-up spawned: ", chosen, " at (", x, ", ", z, ")")
+
 func get_best_unlocked_weapon() -> String:
 	var game_manager = get_node_or_null("/root/GameManager")
 	if game_manager:
@@ -202,8 +267,16 @@ func show_result(won: bool):
 	battle_over = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
+	SoundManager.stop_music()
+
 	if won and game_manager:
 		game_manager.add_win()
+
+	# Play a victory or defeat sting!
+	if won:
+		SoundManager.play("victory_sting")
+	else:
+		SoundManager.play("defeat_sting")
 
 	# Show the result overlay on top of the battlefield
 	var result_scene = load("res://scenes/BattleResult.tscn")
