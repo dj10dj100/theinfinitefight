@@ -47,6 +47,14 @@ const MAP_DATA = {
 		"decoration": "snow_mounds",
 		"name":       "❄️ Snow"
 	},
+	"night": {
+		"ground":     Color(0.04, 0.06, 0.04),
+		"sky":        Color(0.02, 0.02, 0.06),
+		"light":      Color(0.15, 0.15, 0.35),
+		"fog":        Color(0.01, 0.01, 0.05),
+		"decoration": "night_trees",
+		"name":       "🌙 Night"
+	},
 }
 
 # Apply the chosen theme to the battlefield
@@ -74,9 +82,16 @@ func apply(battlefield: Node3D):
 	var light = battlefield.get_node_or_null("WorldLight")
 	if light and light is DirectionalLight3D:
 		light.light_color = data["light"]
+		# Night map: make the sun very dim
+		if map == "night":
+			light.light_energy = 0.08
 
 	# Spawn map decorations (trees, rubble, etc.)
 	_spawn_decorations(battlefield, data["decoration"], data["ground"])
+
+	# Night map: add campfires and a moon glow
+	if map == "night":
+		_spawn_night_lights(battlefield)
 
 func _create_world_env(parent: Node3D) -> WorldEnvironment:
 	var we = WorldEnvironment.new()
@@ -117,6 +132,8 @@ func _spawn_decorations(parent: Node3D, style: String, ground_col: Color):
 				_spawn_rubble(parent, pos)
 			"snow_mounds":
 				_spawn_snow_mound(parent, pos)
+			"night_trees":
+				_spawn_night_tree(parent, pos)
 
 func _spawn_tree(parent: Node3D, pos: Vector3, jungle: bool):
 	var node = Node3D.new()
@@ -178,3 +195,89 @@ func _spawn_snow_mound(parent: Node3D, pos: Vector3):
 	mound.set_surface_override_material(0, mat)
 	mound.position = pos + Vector3(0, sm.height * 0.3, 0)
 	parent.add_child(mound)
+
+# -----------------------------------------------
+# NIGHT MAP EXTRAS
+# -----------------------------------------------
+
+# Dark spooky trees — very dark with a slight blue tint
+func _spawn_night_tree(parent: Node3D, pos: Vector3):
+	var node = Node3D.new()
+	node.position = pos
+
+	var trunk = MeshInstance3D.new()
+	var tm = CylinderMesh.new()
+	tm.top_radius = 0.10; tm.bottom_radius = 0.16; tm.height = 2.2
+	trunk.mesh = tm
+	var tmat = StandardMaterial3D.new()
+	tmat.albedo_color = Color(0.05, 0.04, 0.03)
+	tmat.roughness = 1.0
+	trunk.set_surface_override_material(0, tmat)
+	trunk.position.y = 1.1
+	node.add_child(trunk)
+
+	var leaves = MeshInstance3D.new()
+	var lm = SphereMesh.new()
+	lm.radius = 1.0; lm.height = 2.2
+	leaves.mesh = lm
+	var lmat = StandardMaterial3D.new()
+	lmat.albedo_color = Color(0.02, 0.05, 0.03)
+	lmat.roughness = 1.0
+	leaves.set_surface_override_material(0, lmat)
+	leaves.position.y = 2.5
+	node.add_child(leaves)
+
+	parent.add_child(node)
+
+# Campfires and floodlights dotted around the field
+func _spawn_night_lights(battlefield: Node3D):
+	# Campfire positions — in the middle of the field so both sides can see
+	var fire_positions = [
+		Vector3(-8, 0, 0), Vector3(8, 0, 0), Vector3(0, 0, 0),
+		Vector3(-14, 0, -6), Vector3(14, 0, 6),
+	]
+	for pos in fire_positions:
+		_spawn_campfire(battlefield, pos)
+
+	# A big blue "moon" omni light high above the field
+	var moon = OmniLight3D.new()
+	moon.position       = Vector3(0, 35, 0)
+	moon.light_color    = Color(0.3, 0.35, 0.7)
+	moon.light_energy   = 0.5
+	moon.omni_range     = 80.0
+	battlefield.add_child(moon)
+
+func _spawn_campfire(parent: Node3D, pos: Vector3):
+	# Glowing fire mesh (orange sphere)
+	var fire = MeshInstance3D.new()
+	var sm = SphereMesh.new()
+	sm.radius = 0.22; sm.height = 0.44
+	fire.mesh = sm
+	var fmat = StandardMaterial3D.new()
+	fmat.albedo_color     = Color(1.0, 0.4, 0.05)
+	fmat.emission_enabled = true
+	fmat.emission         = Color(1.0, 0.3, 0.0) * 3.0
+	fmat.shading_mode     = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fire.set_surface_override_material(0, fmat)
+	fire.position = pos + Vector3(0, 0.22, 0)
+	parent.add_child(fire)
+
+	# Orange point light — lights up nearby soldiers
+	var light = OmniLight3D.new()
+	light.position     = pos + Vector3(0, 0.5, 0)
+	light.light_color  = Color(1.0, 0.5, 0.1)
+	light.light_energy = 2.5
+	light.omni_range   = 9.0
+	parent.add_child(light)
+
+	# Log base (dark cylinder under the fire)
+	var log = MeshInstance3D.new()
+	var lm = CylinderMesh.new()
+	lm.top_radius = 0.28; lm.bottom_radius = 0.28; lm.height = 0.15
+	log.mesh = lm
+	var lmat = StandardMaterial3D.new()
+	lmat.albedo_color = Color(0.18, 0.10, 0.04)
+	lmat.roughness = 1.0
+	log.set_surface_override_material(0, lmat)
+	log.position = pos + Vector3(0, 0.07, 0)
+	parent.add_child(log)

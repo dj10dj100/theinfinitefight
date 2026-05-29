@@ -9,7 +9,7 @@ extends Control
 # Press FIGHT when you're ready!
 # -----------------------------------------------
 
-const MAX_CLONES = 10
+var MAX_CLONES: int = 10
 
 # 3D positions for YOUR half of the battlefield
 const FIELD_X_MIN = -17.0
@@ -31,6 +31,9 @@ var buttons_container: VBoxContainer
 # -----------------------------------------------
 func _ready():
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Apply Extra Clone Slot upgrade (+2 slots per level)
+	if GameManager:
+		MAX_CLONES = 10 + GameManager.get_upgrade("extra_clone") * 2
 	build_ui()
 	SoundManager.play_music("menu")
 
@@ -82,7 +85,7 @@ func build_left_panel():
 	panel.set_anchor(SIDE_LEFT,   0); panel.set_anchor(SIDE_RIGHT,  0)
 	panel.set_anchor(SIDE_TOP,    0); panel.set_anchor(SIDE_BOTTOM, 1)
 	panel.offset_left = 10; panel.offset_right  = 230
-	panel.offset_top  = 55; panel.offset_bottom = -10
+	panel.offset_top  = 55; panel.offset_bottom = -80
 	add_child(panel)
 
 	# "YOUR CLONES" heading
@@ -224,59 +227,117 @@ func build_field_panel():
 # FIGHT BUTTON
 # -----------------------------------------------
 func build_fight_button():
-	# Friends button (bottom left)
-	var friends_btn = Button.new()
-	friends_btn.text = "👥  Friends"
-	friends_btn.add_theme_font_size_override("font_size", 14)
-	friends_btn.set_anchor(SIDE_LEFT,   0); friends_btn.set_anchor(SIDE_RIGHT,  0)
-	friends_btn.set_anchor(SIDE_TOP,    1); friends_btn.set_anchor(SIDE_BOTTOM, 1)
-	friends_btn.offset_left = 10;  friends_btn.offset_right  = 108
-	friends_btn.offset_top  = -55; friends_btn.offset_bottom = -30
-	friends_btn.pressed.connect(func():
-		SoundManager.play("click")
-		get_tree().change_scene_to_file("res://scenes/FriendSystem.tscn")
-	)
-	add_child(friends_btn)
+	# -----------------------------------------------
+	# BOTTOM BAR LAYOUT (all buttons nicely spread out)
+	#
+	# Row 1 (very bottom): 5 equal small buttons across the left side
+	#   [👥 Friends] [⚙ Settings] [🎨 Customise] [🛒 Shop] [🏆 Scores]
+	# Row 2 (above row 1): Multiplayer toggle — full left side width
+	# Right side: Map picker + big FIGHT button
+	# -----------------------------------------------
 
-	# Settings button
-	var settings_btn = Button.new()
-	settings_btn.text = "⚙  Settings"
-	settings_btn.add_theme_font_size_override("font_size", 14)
-	settings_btn.set_anchor(SIDE_LEFT,   0); settings_btn.set_anchor(SIDE_RIGHT,  0)
-	settings_btn.set_anchor(SIDE_TOP,    1); settings_btn.set_anchor(SIDE_BOTTOM, 1)
-	settings_btn.offset_left = 112; settings_btn.offset_right  = 220
-	settings_btn.offset_top  = -55; settings_btn.offset_bottom = -30
-	settings_btn.pressed.connect(func():
-		SoundManager.play("click")
-		get_tree().change_scene_to_file("res://scenes/SettingsScreen.tscn")
-	)
-	add_child(settings_btn)
+	# How wide is each of the 5 small buttons?
+	# Left side goes from x=10 to x=225 (215px wide), 5 buttons with 5px gaps
+	var small_btn_w = 39   # 5 buttons × 39px + 4 gaps × 4px = 195 + 16 = 211 ≈ 215
+	var small_gap   = 4
+	var small_start = 10
+	var small_top   = -38  # sits 38px above the bottom edge
+	var small_bot   = -10  # 28px tall buttons
 
-	# Leaderboard button
-	var lb_btn = Button.new()
-	lb_btn.text = "🏆  Scores"
-	lb_btn.add_theme_font_size_override("font_size", 14)
-	lb_btn.set_anchor(SIDE_LEFT,   0); lb_btn.set_anchor(SIDE_RIGHT,  0)
-	lb_btn.set_anchor(SIDE_TOP,    1); lb_btn.set_anchor(SIDE_BOTTOM, 1)
-	lb_btn.offset_left = 10;  lb_btn.offset_right  = 220
-	lb_btn.offset_top  = -27; lb_btn.offset_bottom = -4
-	lb_btn.pressed.connect(func():
+	var small_buttons = [
+		{"text": "👥 Friends",    "scene": "res://scenes/FriendSystem.tscn"},
+		{"text": "⚙ Settings",   "scene": "res://scenes/SettingsScreen.tscn"},
+		{"text": "🎨 Customise", "scene": "res://scenes/CloneCustomise.tscn"},
+		{"text": "🛒 Shop",       "scene": "res://scenes/UpgradeShop.tscn"},
+		{"text": "🏆 Scores",     "scene": "res://scenes/Leaderboard.tscn"},
+	]
+
+	for i in small_buttons.size():
+		var info = small_buttons[i]
+		var b = Button.new()
+		b.text = info["text"]
+		b.add_theme_font_size_override("font_size", 12)
+		b.set_anchor(SIDE_LEFT,   0); b.set_anchor(SIDE_RIGHT,  0)
+		b.set_anchor(SIDE_TOP,    1); b.set_anchor(SIDE_BOTTOM, 1)
+		var bx = small_start + i * (small_btn_w + small_gap)
+		b.offset_left  = bx
+		b.offset_right = bx + small_btn_w
+		b.offset_top   = small_top
+		b.offset_bottom = small_bot
+		var scene_path = info["scene"]
+		b.pressed.connect(func():
+			SoundManager.play("click")
+			get_tree().change_scene_to_file(scene_path)
+		)
+		add_child(b)
+
+	# Row 2: Multiplayer toggle (left half) + Wave Mode toggle (right half)
+	var mp_btn = Button.new()
+	mp_btn.name = "MultiplayerBtn"
+	var mp_on = GameManager.multiplayer_on if GameManager else false
+	mp_btn.text = "🎮 2P: " + ("ON ✅" if mp_on else "OFF ❌")
+	mp_btn.add_theme_font_size_override("font_size", 12)
+	mp_btn.set_anchor(SIDE_LEFT,   0); mp_btn.set_anchor(SIDE_RIGHT,  0)
+	mp_btn.set_anchor(SIDE_TOP,    1); mp_btn.set_anchor(SIDE_BOTTOM, 1)
+	mp_btn.offset_left   = 10
+	mp_btn.offset_right  = 114
+	mp_btn.offset_top    = -70
+	mp_btn.offset_bottom = -44
+	mp_btn.pressed.connect(func():
 		SoundManager.play("click")
-		get_tree().change_scene_to_file("res://scenes/Leaderboard.tscn")
+		if GameManager:
+			GameManager.multiplayer_on = not GameManager.multiplayer_on
+		mp_btn.text = "🎮 2P: " + ("ON ✅" if GameManager.multiplayer_on else "OFF ❌")
 	)
-	add_child(lb_btn)
+	add_child(mp_btn)
+
+	# Wave Mode toggle
+	var wave_btn = Button.new()
+	wave_btn.name = "WaveModeBtn"
+	var wm_on = GameManager.wave_mode if GameManager else false
+	wave_btn.text = "🌊 Waves: " + ("ON ✅" if wm_on else "OFF ❌")
+	wave_btn.add_theme_font_size_override("font_size", 12)
+	wave_btn.set_anchor(SIDE_LEFT,   0); wave_btn.set_anchor(SIDE_RIGHT,  0)
+	wave_btn.set_anchor(SIDE_TOP,    1); wave_btn.set_anchor(SIDE_BOTTOM, 1)
+	wave_btn.offset_left   = 118
+	wave_btn.offset_right  = 225
+	wave_btn.offset_top    = -70
+	wave_btn.offset_bottom = -44
+	wave_btn.pressed.connect(func():
+		SoundManager.play("click")
+		if GameManager:
+			GameManager.wave_mode = not GameManager.wave_mode
+		wave_btn.text = "🌊 Waves: " + ("ON ✅" if GameManager.wave_mode else "OFF ❌")
+	)
+	add_child(wave_btn)
+
+	# ← Back to main menu
+	var back_btn = Button.new()
+	back_btn.text = "← Menu"
+	back_btn.add_theme_font_size_override("font_size", 13)
+	back_btn.set_anchor(SIDE_LEFT,   0); back_btn.set_anchor(SIDE_RIGHT,  0)
+	back_btn.set_anchor(SIDE_TOP,    1); back_btn.set_anchor(SIDE_BOTTOM, 1)
+	back_btn.offset_left   = 240
+	back_btn.offset_right  = 340
+	back_btn.offset_top    = -92
+	back_btn.offset_bottom = -74
+	back_btn.pressed.connect(func():
+		SoundManager.play("click")
+		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+	)
+	add_child(back_btn)
 
 	# Map picker — choose your battlefield!
 	_build_map_picker()
 
-	# FIGHT button (bottom right)
+	# FIGHT button (bottom right) — big and easy to press!
 	var btn = Button.new()
 	btn.text = "⚔   FIGHT!"
-	btn.add_theme_font_size_override("font_size", 22)
+	btn.add_theme_font_size_override("font_size", 26)
 	btn.set_anchor(SIDE_LEFT,   0); btn.set_anchor(SIDE_RIGHT,  1)
 	btn.set_anchor(SIDE_TOP,    1); btn.set_anchor(SIDE_BOTTOM, 1)
 	btn.offset_left = 240; btn.offset_right  = -10
-	btn.offset_top  = -55; btn.offset_bottom = -10
+	btn.offset_top  = -70; btn.offset_bottom = -8
 	btn.pressed.connect(_on_fight_pressed)
 	add_child(btn)
 
@@ -287,6 +348,7 @@ func _build_map_picker():
 		{"key": "jungle",    "label": "🌴"},
 		{"key": "city",      "label": "🏙"},
 		{"key": "snow",      "label": "❄️"},
+		{"key": "night",     "label": "🌙"},
 	]
 	var map_buttons: Dictionary = {}
 	var btn_w = 52
@@ -299,7 +361,7 @@ func _build_map_picker():
 	heading.set_anchor(SIDE_LEFT,   0); heading.set_anchor(SIDE_RIGHT,  0)
 	heading.set_anchor(SIDE_TOP,    1); heading.set_anchor(SIDE_BOTTOM, 1)
 	heading.offset_left = 240; heading.offset_right  = 295
-	heading.offset_top  = -95; heading.offset_bottom = -65
+	heading.offset_top  = -92; heading.offset_bottom = -68
 	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(heading)
 
@@ -313,8 +375,8 @@ func _build_map_picker():
 		mb.set_anchor(SIDE_TOP,    1); mb.set_anchor(SIDE_BOTTOM, 1)
 		mb.offset_left   = 295 + i * (btn_w + gap)
 		mb.offset_right  = 295 + i * (btn_w + gap) + btn_w
-		mb.offset_top    = -95
-		mb.offset_bottom = -65
+		mb.offset_top    = -92
+		mb.offset_bottom = -68
 		map_buttons[m["key"]] = mb
 
 		mb.pressed.connect(func():

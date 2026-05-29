@@ -13,9 +13,9 @@ var difficulty_buttons: Dictionary = {}
 func _ready():
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	# If the player already has a name saved, skip straight to the deploy screen
+	# If the player already has a name saved, skip straight to the main menu
 	if GameManager and GameManager.player_name != "":
-		get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn")
+		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
 		return
 
 	build_ui()

@@ -30,6 +30,7 @@ func _ready():
 func build_hud():
 	# Root control that fills the whole screen
 	var root = Control.new()
+	root.name = "Control"
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
@@ -149,6 +150,47 @@ func build_hud():
 	swap_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	weapon_bg.add_child(swap_hint)
 
+	# === SPECIAL ABILITIES PANEL (bottom centre) ===
+	var ability_bg = Panel.new()
+	ability_bg.name = "AbilityPanel"
+	ability_bg.set_anchor(SIDE_LEFT,   0.5)
+	ability_bg.set_anchor(SIDE_RIGHT,  0.5)
+	ability_bg.set_anchor(SIDE_TOP,    1)
+	ability_bg.set_anchor(SIDE_BOTTOM, 1)
+	ability_bg.offset_left   = -160
+	ability_bg.offset_right  = 160
+	ability_bg.offset_top    = -80
+	ability_bg.offset_bottom = -20
+	root.add_child(ability_bg)
+
+	var ab_title = Label.new()
+	ab_title.text = "SPECIAL ABILITIES"
+	ab_title.add_theme_font_size_override("font_size", 11)
+	ab_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	ab_title.position = Vector2(0, 3)
+	ab_title.size     = Vector2(320, 18)
+	ab_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ab_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ability_bg.add_child(ab_title)
+
+	# Three ability labels — Grenade, Airstrike, Landmine
+	var ability_data = [
+		{"name": "ability_grenade",   "label": "💣 G", "x": 8},
+		{"name": "ability_airstrike", "label": "✈ A", "x": 112},
+		{"name": "ability_landmine",  "label": "💥 M", "x": 216},
+	]
+	for a in ability_data:
+		var lbl = Label.new()
+		lbl.name = a["name"]
+		lbl.text = a["label"] + "\nREADY"
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4))
+		lbl.position = Vector2(a["x"], 18)
+		lbl.size     = Vector2(96, 40)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ability_bg.add_child(lbl)
+
 	# === ESC HINT (top right, small) ===
 	var esc_hint = Label.new()
 	esc_hint.text = "ESC — back to overview"
@@ -243,3 +285,21 @@ func _process(_delta: float) -> void:
 	# --- Swap hint (only for snipers with a secondary weapon) ---
 	var has_secondary = "secondary_weapon" in tracked_clone and tracked_clone.secondary_weapon != ""
 	swap_hint.visible = has_secondary
+
+	# --- Special ability cooldown display ---
+	var ability_panel = get_node_or_null("Control/AbilityPanel")
+	if ability_panel and "grenade_cooldown" in tracked_clone:
+		_update_ability_label(ability_panel, "ability_grenade",   "💣 G",  tracked_clone.grenade_cooldown)
+		_update_ability_label(ability_panel, "ability_airstrike", "✈ A",  tracked_clone.airstrike_cooldown)
+		_update_ability_label(ability_panel, "ability_landmine",  "💥 M", tracked_clone.landmine_cooldown)
+
+func _update_ability_label(panel: Panel, node_name: String, icon: String, cooldown: float):
+	var lbl = panel.get_node_or_null(node_name)
+	if lbl == null:
+		return
+	if cooldown <= 0:
+		lbl.text = icon + "\nREADY ✅"
+		lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4))   # Green = ready
+	else:
+		lbl.text = icon + "\n" + str(int(cooldown) + 1) + "s"
+		lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))   # Grey = cooling down

@@ -104,7 +104,7 @@ func build_ui():
 	back_btn.offset_bottom = -10
 	back_btn.pressed.connect(func():
 		SoundManager.play("click")
-		get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn")
+		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
 	)
 	add_child(back_btn)
 

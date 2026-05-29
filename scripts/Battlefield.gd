@@ -15,6 +15,14 @@ var game_manager = null
 var battle_over: bool = false
 var hud: CanvasLayer = null
 
+# Battle coins — collected by walking over dropped coins
+var battle_coins: int = 0
+var _coin_label = null
+var _upgrade_panel = null
+
+# Wave mode
+var wave_manager = null
+
 @onready var top_down_camera = $TopDownCamera
 @onready var first_person_camera = $FirstPersonCamera
 
@@ -26,6 +34,23 @@ func _ready():
 	var hud_scene = load("res://scenes/HUD.tscn")
 	hud = hud_scene.instantiate()
 	add_child(hud)
+
+	# Spawn the Mini Map radar
+	var minimap = load("res://scenes/MiniMap.tscn")
+	if minimap:
+		add_child(minimap.instantiate())
+	else:
+		# Build it directly if the scene file isn't there yet
+		var mm_script = load("res://scripts/MiniMap.gd")
+		var mm = CanvasLayer.new()
+		mm.set_script(mm_script)
+		add_child(mm)
+
+	# Spawn weather effects
+	var weather = Node.new()
+	weather.set_script(load("res://scripts/Weather.gd"))
+	weather.add_to_group("weather")
+	add_child(weather)
 
 	# Wait one frame so the scene is fully loaded
 	await get_tree().process_frame
@@ -52,6 +77,19 @@ func _ready():
 	if game_manager and game_manager.total_wins > 0 and game_manager.total_wins % 10 == 0:
 		spawn_boss()
 
+	# Multiplayer: give Player 2 control of the second clone
+	if game_manager and game_manager.multiplayer_on and clones_on_field.size() >= 2:
+		var p2_clone = clones_on_field[1]
+		p2_clone.is_player2_controlled = true
+		# Tint P2's clone bright blue so you can tell them apart
+		for part in p2_clone.body_parts:
+			if is_instance_valid(part):
+				var mat = StandardMaterial3D.new()
+				mat.albedo_color = Color(0.1, 0.4, 0.9)
+				mat.roughness = 0.3
+				part.set_surface_override_material(0, mat)
+		print("🎮 Player 2 is controlling the second clone! (IJKL to move, SPACE to shoot)")
+
 	# Start with the top-down view
 	top_down_camera.current = true
 	first_person_camera.current = false
@@ -61,6 +99,26 @@ func _ready():
 
 	# Spawn power-ups every 12 seconds
 	_start_powerup_timer()
+
+	# If wave mode is on, start the WaveManager instead of using pre-placed enemies
+	if game_manager and game_manager.wave_mode:
+		wave_manager = Node.new()
+		wave_manager.set_script(load("res://scripts/WaveManager.gd"))
+		add_child(wave_manager)
+		wave_manager.start(self)
+	else:
+		# Spawn one jeep at the player side
+		_spawn_jeep()
+
+	# Spawn traps that were placed on the deploy screen
+	_spawn_traps()
+
+	# Reset killstreak for the new battle
+	Killstreak.reset()
+	Achievements.coins_spent_battle = 0
+
+	# Build the coin + upgrade HUD (top-left corner)
+	_build_coin_hud()
 
 	print("Battle started! Your clones: ", clones_on_field.size(), "  Enemies: ", enemies_on_field.size())
 
@@ -82,7 +140,39 @@ func spawn_clones_from_deploy(deploy_data: Array):
 		clone.position = entry["position"]
 		add_child(clone)
 		clones_on_field.append(clone)
+
+	# Apply upgrade bonuses to every spawned clone
+	for clone in clones_on_field:
+		_apply_upgrades_to_clone(clone)
+
 	print("Spawned ", deploy_data.size(), " clones from deploy screen!")
+
+func _apply_upgrades_to_clone(clone):
+	if not GameManager:
+		return
+	# Tougher clones: +25 HP per level
+	clone.health     += GameManager.get_upgrade("tougher_clones") * 25.0
+	# Faster legs: +20% speed per level
+	clone.move_speed *= 1.0 + GameManager.get_upgrade("faster_legs") * 0.20
+
+	# Apply chosen special ability (now includes Phase 13 classes!)
+	var abilities = ["none","berserker","medic","tank","sniper_eye","field_medic","demolitions","engineer"]
+	var ability_idx = clamp(GameManager.clone_ability_index, 0, abilities.size()-1)
+	clone.special_ability = abilities[ability_idx]
+	match clone.special_ability:
+		"tank":
+			clone.activate_shield(2)
+		"sniper_eye":
+			clone.shoot_range *= 1.30
+
+	# Apply chosen clone colour
+	var colours = [
+		Color(0.30,0.38,0.16), Color(0.15,0.30,0.65), Color(0.65,0.10,0.10),
+		Color(0.40,0.10,0.55), Color(0.75,0.35,0.05), Color(0.88,0.88,0.88),
+		Color(0.85,0.35,0.55), Color(0.80,0.75,0.05),
+	]
+	var cidx = clamp(GameManager.clone_colour_index, 0, colours.size()-1)
+	clone.custom_colour = colours[cidx]
 
 func get_enemy_health_multiplier() -> float:
 	var diff = game_manager.difficulty if game_manager else "medium"
@@ -120,6 +210,9 @@ func check_if_clone_clicked(screen_pos: Vector2):
 		var clicked_clone = result.collider
 		controlled_clone = clicked_clone
 		clicked_clone.take_player_control()
+	elif result and result.collider.is_in_group("jeep"):
+		result.collider.enter_jeep()
+		print("Jumped in the jeep!")
 
 # -----------------------------------------------
 # SWITCHING CAMERA VIEWS
@@ -168,6 +261,15 @@ func on_clone_died(clone):
 func on_enemy_died(enemy):
 	enemies_on_field.erase(enemy)
 	print("Enemies remaining: ", enemies_on_field.size())
+
+	# Boss slayer achievement!
+	if enemy.is_in_group("boss"):
+		Achievements.unlock("boss_slayer")
+
+	# Tell the WaveManager an enemy died (wave mode only)
+	if wave_manager and is_instance_valid(wave_manager):
+		wave_manager.on_enemy_died()
+		return   # In wave mode, WaveManager decides when battle ends
 
 	if enemies_on_field.is_empty():
 		battle_won()
@@ -288,7 +390,125 @@ func show_result(won: bool):
 		result.show_defeat()
 
 func battle_won():
+	# Check achievements
+	Achievements.check_wins()
+	if last_stand_used:
+		Achievements.unlock("last_stand_win")
+	if clones_on_field.size() == 1:
+		Achievements.unlock("survivor")
 	show_result(true)
 
 func battle_lost():
 	show_result(false)
+
+# -----------------------------------------------
+# COINS — collected mid-battle to buy upgrades
+# -----------------------------------------------
+func collect_coin(value: int):
+	battle_coins += value
+	_update_coin_label()
+
+func _update_coin_label():
+	if _coin_label and is_instance_valid(_coin_label):
+		_coin_label.text = "💰 " + str(battle_coins) + " coins"
+
+func _build_coin_hud():
+	var canvas = CanvasLayer.new()
+	canvas.layer = 4
+	add_child(canvas)
+
+	# Coin counter (top left)
+	var bg = Panel.new()
+	bg.set_anchor(SIDE_LEFT, 0); bg.set_anchor(SIDE_RIGHT, 0)
+	bg.set_anchor(SIDE_TOP,  0); bg.set_anchor(SIDE_BOTTOM, 0)
+	bg.offset_left = 10; bg.offset_right = 180
+	bg.offset_top  = 10; bg.offset_bottom = 42
+	canvas.add_child(bg)
+
+	_coin_label = Label.new()
+	_coin_label.text = "💰 0 coins"
+	_coin_label.add_theme_font_size_override("font_size", 14)
+	_coin_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+	_coin_label.position = Vector2(8, 4)
+	_coin_label.size     = Vector2(160, 28)
+	_coin_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.add_child(_coin_label)
+
+	# Upgrade buttons (below the coin counter)
+	var upgrades = [
+		{"label": "❤ +50 HP  (3💰)",   "cost": 3, "action": "buy_health"},
+		{"label": "⚡ Speed    (4💰)",  "cost": 4, "action": "buy_speed"},
+		{"label": "🛡 Shield    (5💰)", "cost": 5, "action": "buy_shield"},
+	]
+	for i in upgrades.size():
+		var u = upgrades[i]
+		var btn = Button.new()
+		btn.text = u["label"]
+		btn.add_theme_font_size_override("font_size", 12)
+		btn.set_anchor(SIDE_LEFT, 0); btn.set_anchor(SIDE_RIGHT, 0)
+		btn.set_anchor(SIDE_TOP,  0); btn.set_anchor(SIDE_BOTTOM, 0)
+		btn.offset_left  = 10
+		btn.offset_right = 180
+		btn.offset_top   = 48 + i * 36
+		btn.offset_bottom = 80 + i * 36
+		var action = u["action"]
+		var cost   = u["cost"]
+		btn.pressed.connect(func(): _buy_upgrade(action, cost))
+		canvas.add_child(btn)
+
+func _buy_upgrade(action: String, cost: int):
+	if battle_coins < cost:
+		print("Not enough coins! Need ", cost, ", have ", battle_coins)
+		return
+
+	battle_coins -= cost
+	_update_coin_label()
+	SoundManager.play("click")
+
+	Achievements.coins_spent_battle += cost
+	if Achievements.coins_spent_battle >= 20:
+		Achievements.unlock("rich")
+
+	# Apply the upgrade to ALL living clones
+	for clone in clones_on_field:
+		if not is_instance_valid(clone):
+			continue
+		match action:
+			"buy_health":
+				clone.health = min(clone.health + 50.0, 200.0)
+				print("❤ All clones healed +50 HP!")
+			"buy_speed":
+				clone.move_speed = min(clone.move_speed * 1.4, 12.0)
+				print("⚡ All clones got faster!")
+			"buy_shield":
+				clone.activate_shield(2)
+				print("🛡 All clones got a shield!")
+
+# -----------------------------------------------
+# JEEP — spawns one jeep near the player zone
+# -----------------------------------------------
+func _spawn_jeep():
+	var jeep = CharacterBody3D.new()
+	jeep.set_script(load("res://scripts/Jeep.gd"))
+	jeep.position = Vector3(10.0, 0.1, -8.0)
+	add_child(jeep)
+	print("🚗 A jeep has spawned! Click it to drive.")
+
+# -----------------------------------------------
+# TRAPS — spawn walls/spikes saved in GameManager
+# -----------------------------------------------
+func _spawn_traps():
+	if not game_manager:
+		return
+	var trap_data = game_manager.trap_data if game_manager.has_meta("trap_data") else []
+	# trap_data is an array of {type, position}
+	for t in trap_data:
+		var trap = StaticBody3D.new()
+		trap.set_script(load("res://scripts/Trap.gd"))
+		trap.set("trap_type", t["type"])
+		trap.position = t["position"]
+		add_child(trap)
+
+# -----------------------------------------------
+# ENEMY DIED — tell WaveManager if wave mode is on
+# -----------------------------------------------

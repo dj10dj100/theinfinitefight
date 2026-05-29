@@ -137,7 +137,7 @@ func build_ui():
 	back_btn.set_anchor(SIDE_LEFT, 0.3);   back_btn.set_anchor(SIDE_RIGHT, 0.7)
 	back_btn.set_anchor(SIDE_TOP, 1);      back_btn.set_anchor(SIDE_BOTTOM, 1)
 	back_btn.offset_top = -58;             back_btn.offset_bottom = -12
-	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn"))
+	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
 	add_child(back_btn)
 
 # -----------------------------------------------

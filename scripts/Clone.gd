@@ -20,6 +20,7 @@ var active_weapon: String = ""     # Which weapon is currently active
 var bullet_scene = preload("res://scenes/Bullet.tscn")
 
 var is_player_controlled: bool = false
+var is_player2_controlled: bool = false
 var shoot_timer: float = 0.0
 var target_enemy = null
 var mouse_sensitivity: float = 0.003
@@ -34,6 +35,33 @@ var body_parts: Array = []
 # Shield — blocks this many hits before breaking
 var shield_hits: int = 0
 
+# Special ability chosen in CloneCustomise
+var special_ability: String = "none"
+
+# Rank system
+var kills: int = 0
+var rank_index: int = 0
+var rank_damage_bonus: float = 1.0
+
+# Custom colour (set from Battlefield after deploy)
+var custom_colour: Color = Color(0.30, 0.38, 0.16)
+
+# Medic: heal timer
+var _medic_timer: float = 0.0
+
+# Special ability cooldowns (in seconds)
+# These count DOWN — when they hit 0 the ability is ready again!
+var grenade_cooldown:   float = 0.0   # G key — throw a grenade
+var airstrike_cooldown: float = 0.0   # A key — call an airstrike
+var landmine_cooldown:  float = 0.0   # M key — plant a landmine
+const GRENADE_CD   = 12.0
+const AIRSTRIKE_CD = 25.0
+const LANDMINE_CD  = 18.0
+
+# Animation variables — used to bob and sway the body while moving
+var _anim_time: float = 0.0
+var _is_moving: bool  = false
+
 @onready var shoot_point = $ShootPoint
 @onready var mesh_instance = $MeshInstance3D
 
@@ -46,7 +74,9 @@ func _ready():
 
 	# Hide the plain capsule and build a proper plastic army man instead!
 	mesh_instance.visible = false
-	body_parts = ArmyManBuilder.build(self, CLONE_COLOUR)
+	# Use custom colour if set, otherwise default olive green
+	var build_colour = custom_colour if custom_colour != Color(0.30, 0.38, 0.16) else CLONE_COLOUR
+	body_parts = ArmyManBuilder.build(self, build_colour)
 
 # -----------------------------------------------
 # Every frame — movement, shooting, AI
@@ -57,12 +87,21 @@ func _physics_process(delta):
 
 	shoot_timer -= delta
 
+	# Tick down the special ability cooldowns every frame
+	grenade_cooldown   = max(grenade_cooldown   - delta, 0.0)
+	airstrike_cooldown = max(airstrike_cooldown - delta, 0.0)
+	landmine_cooldown  = max(landmine_cooldown  - delta, 0.0)
+
 	if is_player_controlled:
 		handle_player_movement(delta)
+	elif is_player2_controlled:
+		handle_player2_movement(delta)
 	else:
 		handle_ai(delta)
 
 	move_and_slide()
+	_update_animation(delta)
+	_update_ability(delta)
 
 # -----------------------------------------------
 # Mouse look (only in first-person mode)
@@ -83,6 +122,25 @@ func _input(event):
 		if event.pressed and event.keycode == KEY_R and secondary_weapon != "":
 			swap_weapon()
 
+	# Special abilities — only in first-person!
+	if is_player_controlled and event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_G:
+				if grenade_cooldown <= 0:
+					_throw_grenade()
+				else:
+					print("Grenade not ready! Wait ", int(grenade_cooldown) + 1, " more seconds.")
+			KEY_A:
+				if airstrike_cooldown <= 0:
+					_call_airstrike()
+				else:
+					print("Airstrike not ready! Wait ", int(airstrike_cooldown) + 1, " more seconds.")
+			KEY_M:
+				if landmine_cooldown <= 0:
+					_plant_landmine()
+				else:
+					print("Landmine not ready! Wait ", int(landmine_cooldown) + 1, " more seconds.")
+
 # -----------------------------------------------
 # PLAYER MOVEMENT (WASD or arrow keys)
 # -----------------------------------------------
@@ -100,6 +158,33 @@ func handle_player_movement(delta):
 	else:
 		velocity.x = move_toward(velocity.x, 0, move_speed)
 		velocity.z = move_toward(velocity.z, 0, move_speed)
+
+# -----------------------------------------------
+# PLAYER 2 MOVEMENT — IJKL keys + SPACE to shoot
+# Player 2 controls from a top-down view,
+# facing the enemy zone (positive Z direction)
+# -----------------------------------------------
+func handle_player2_movement(delta):
+	var direction = Vector3.ZERO
+	if Input.is_action_pressed("p2_up"):    direction -= Vector3(0, 0, 1)
+	if Input.is_action_pressed("p2_down"):  direction += Vector3(0, 0, 1)
+	if Input.is_action_pressed("p2_left"):  direction -= Vector3(1, 0, 0)
+	if Input.is_action_pressed("p2_right"): direction += Vector3(1, 0, 0)
+
+	if direction != Vector3.ZERO:
+		direction = direction.normalized()
+		velocity.x = direction.x * move_speed
+		velocity.z = direction.z * move_speed
+		# Face the direction of movement
+		look_at(global_position + direction, Vector3.UP)
+	else:
+		velocity.x = move_toward(velocity.x, 0, move_speed)
+		velocity.z = move_toward(velocity.z, 0, move_speed)
+
+	# Spacebar to shoot
+	if Input.is_action_just_pressed("p2_shoot"):
+		if shoot_timer <= 0:
+			shoot()
 
 # -----------------------------------------------
 # AI — finds an enemy and walks/shoots at them
@@ -132,11 +217,19 @@ func shoot():
 	# Play the right gunshot sound for the weapon!
 	SoundManager.play("shoot_" + active_weapon)
 
+	# Shout a battle phrase!
+	VoiceLines.say_shoot(global_position)
+
+	# Muzzle flash at the tip of the gun!
+	var shoot_dir = -shoot_point.global_transform.basis.z.normalized()
+	Particles.muzzle_flash(shoot_point.global_position, shoot_dir)
+
 	var bullet = bullet_scene.instantiate()
 	bullet.global_position = shoot_point.global_position
 	bullet.direction = -shoot_point.global_transform.basis.z.normalized()
-	bullet.damage = get_bullet_damage()
-	bullet.fired_by = "clones"
+	bullet.damage    = get_bullet_damage()
+	bullet.fired_by  = "clones"
+	bullet.shot_by   = self
 	get_tree().root.add_child(bullet)
 
 # Sniper clone swaps between sniper rifle and secondary weapon
@@ -151,25 +244,34 @@ func swap_weapon():
 
 # How fast does this weapon fire?
 func get_shoot_cooldown() -> float:
+	var base = 1.5
 	match active_weapon:
-		"pistol":        return 1.5
-		"revolver":      return 2.0
-		"shotgun":       return 2.2
-		"assault_rifle": return 0.3
-		"machine_gun":   return 0.15
-		"sniper":        return 3.0
-		_:               return 1.5
+		"pistol":        base = 1.5
+		"revolver":      base = 2.0
+		"shotgun":       base = 2.2
+		"assault_rifle": base = 0.3
+		"machine_gun":   base = 0.15
+		"sniper":        base = 3.0
+	# Fast Reload upgrade: -20% cooldown per level
+	var reduction = 1.0 - GameManager.get_upgrade("fast_reload") * 0.20 if GameManager else 1.0
+	# Engineer class: shoots twice as fast!
+	if special_ability == "engineer":
+		reduction *= 0.5
+	return base * clamp(reduction, 0.2, 1.0)
 
 # How much damage does each weapon do per shot?
 func get_bullet_damage() -> float:
+	var base = 20.0
 	match active_weapon:
-		"pistol":        return 20.0
-		"revolver":      return 35.0
-		"shotgun":       return 60.0
-		"assault_rifle": return 15.0
-		"machine_gun":   return 10.0
-		"sniper":        return 90.0
-		_:               return 20.0
+		"pistol":        base = 20.0
+		"revolver":      base = 35.0
+		"shotgun":       base = 60.0
+		"assault_rifle": base = 15.0
+		"machine_gun":   base = 10.0
+		"sniper":        base = 90.0
+	# Bigger Bullets upgrade: +25% damage per level
+	var upgrade_bonus = 1.0 + GameManager.get_upgrade("bigger_bullets") * 0.25 if GameManager else 1.0
+	return base * upgrade_bonus * rank_damage_bonus
 
 # -----------------------------------------------
 # FIND THE NEAREST ENEMY
@@ -188,6 +290,58 @@ func find_nearest_enemy() -> Node:
 # -----------------------------------------------
 # TAKING DAMAGE
 # -----------------------------------------------
+# -----------------------------------------------
+# BODY BOB ANIMATION
+# Makes the clone bob up and down while walking,
+# and tilt forward slightly when running.
+# -----------------------------------------------
+func _update_ability(delta: float):
+	match special_ability:
+		"berserker":
+			# Below 50% HP: run faster!
+			if health < 50.0:
+				move_speed = 7.0
+		"medic":
+			# Heal 2 HP per second (self only)
+			_medic_timer += delta
+			if _medic_timer >= 1.0:
+				_medic_timer = 0.0
+				health = min(health + 2.0, 100.0)
+		"field_medic":
+			# Heal ALL nearby clones 4 HP per second
+			_medic_timer += delta
+			if _medic_timer >= 1.0:
+				_medic_timer = 0.0
+				for c in get_tree().get_nodes_in_group("clones"):
+					if is_instance_valid(c) and global_position.distance_to(c.global_position) <= 6.0:
+						c.health = min(c.health + 4.0, 100.0)
+		"demolitions":
+			# Grenade cooldown is halved — handled in get_shoot_cooldown via the constant
+			# Also boost grenade damage (set on the grenade node in _throw_grenade)
+			pass
+		"engineer":
+			# Shoot twice as fast — handled via get_shoot_cooldown below
+			pass
+
+func _update_animation(delta: float):
+	_is_moving = velocity.length() > 0.5 and is_on_floor()
+	if _is_moving:
+		_anim_time += delta * 8.0  # Walking speed
+	else:
+		_anim_time = lerp(_anim_time, round(_anim_time), delta * 6.0)
+
+	# Bob the whole body up and down
+	var bob = sin(_anim_time) * 0.06 if _is_moving else 0.0
+	# Sway side to side a tiny bit
+	var sway = sin(_anim_time * 0.5) * 0.03 if _is_moving else 0.0
+
+	# Apply to each body part (they were built at fixed positions)
+	# We offset the whole character up/down via a position tweak
+	if body_parts.size() > 0:
+		var first = body_parts[0]
+		if is_instance_valid(first):
+			first.get_parent().position.y = bob
+
 func activate_shield(hits: int):
 	shield_hits = hits
 	# Flash gold to show the shield is active
@@ -218,6 +372,7 @@ func take_damage(amount: float):
 
 	health -= amount
 	SoundManager.play("hit")
+	VoiceLines.say_hit(global_position)
 	print("Clone hit! Health left: ", health)
 
 	# Flash all parts white, then restore the olive green
@@ -242,8 +397,74 @@ func take_damage(amount: float):
 func die():
 	print("A clone has fallen!")
 	SoundManager.play("death")
+	VoiceLines.say_death(global_position)
+	Particles.death_explosion(global_position + Vector3(0, 0.8, 0), CLONE_COLOUR)
 	get_parent().on_clone_died(self)
 	queue_free()
+
+# -----------------------------------------------
+# SPECIAL ABILITIES
+# -----------------------------------------------
+func _throw_grenade():
+	# Demolitions class: cooldown is halved!
+	grenade_cooldown = GRENADE_CD * (0.5 if special_ability == "demolitions" else 1.0)
+	SoundManager.play("click")
+	print("💣 GRENADE! Watch out!")
+
+	var grenade = load("res://scripts/Grenade.gd")
+	var g = Area3D.new()
+	g.set_script(grenade)
+
+	# Add a collision shape so it can detect things
+	var shape = CollisionShape3D.new()
+	shape.shape = SphereShape3D.new()
+	shape.shape.radius = 0.2
+	g.add_child(shape)
+
+	# Throw it forward and slightly upward from the clone's position
+	g.global_position = global_position + Vector3(0, 1.2, 0)
+	var throw_dir = -global_transform.basis.z.normalized()
+	g.set("velocity_vec", throw_dir * 10.0 + Vector3(0, 5.0, 0))
+	# Demolitions class: double damage!
+	if special_ability == "demolitions":
+		g.set("damage", 240.0)
+	get_tree().root.add_child(g)
+
+func _call_airstrike():
+	airstrike_cooldown = AIRSTRIKE_CD
+	SoundManager.play("click")
+	print("✈️ AIRSTRIKE INCOMING!")
+	Achievements.airstrike_count += 1
+	if Achievements.airstrike_count >= 5:
+		Achievements.unlock("airstrike_ace")
+
+	# Target: 15 metres in front of the clone
+	var target = global_position + (-global_transform.basis.z.normalized() * 15.0)
+	target.y = 0.0
+
+	var strike = Node3D.new()
+	strike.set_script(load("res://scripts/Airstrike.gd"))
+	strike.set("target_pos", target)
+	get_tree().root.add_child(strike)
+
+func _plant_landmine():
+	landmine_cooldown = LANDMINE_CD
+	SoundManager.play("click")
+	print("💥 Mine planted! Back away...")
+
+	var mine = Area3D.new()
+	mine.set_script(load("res://scripts/Landmine.gd"))
+
+	# Add a collision shape so enemies trigger it
+	var shape = CollisionShape3D.new()
+	shape.shape = CylinderShape3D.new()
+	shape.shape.radius = 0.5
+	shape.shape.height = 0.3
+	mine.add_child(shape)
+
+	mine.global_position = global_position
+	mine.global_position.y = 0.05
+	get_tree().root.add_child(mine)
 
 # -----------------------------------------------
 # TAKE / RELEASE PLAYER CONTROL

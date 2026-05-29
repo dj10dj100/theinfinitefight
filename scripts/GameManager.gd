@@ -35,6 +35,27 @@ var selected_map: String = "grassland"
 # Leaderboard — top 10 scores saved as [{name, wins}]
 var leaderboard: Array = []
 
+# Upgrades bought in the shop — key = upgrade name, value = level (0 = not bought)
+var upgrades: Dictionary = {}
+
+# How many wins have been spent in the shop
+var wins_spent: int = 0
+
+# Clone customisation
+var clone_colour_index: int = 0      # Index into CloneCustomise.COLOURS
+var squad_name: String = ""          # Nickname for your squad
+var clone_ability_index: int = 0     # Index into CloneCustomise.ABILITIES
+
+# Multiplayer — is Player 2 active?
+var multiplayer_on: bool = false
+
+# Wave mode — survive endless waves instead of one fixed battle
+var wave_mode: bool = false
+
+# Helper: get the multiplier for a stat based on upgrade level
+func get_upgrade(key: String) -> int:
+	return upgrades.get(key, 0)
+
 # Called when the game starts
 func _ready():
 	print("Game Manager is ready!")
@@ -92,7 +113,12 @@ func save_player_data():
 		"total_wins": total_wins,
 		"unlocked_weapons": unlocked_weapons,
 		"intro_seen": intro_seen,
-		"leaderboard": leaderboard
+		"leaderboard": leaderboard,
+		"upgrades": upgrades,
+		"wins_spent": wins_spent,
+		"clone_colour_index": clone_colour_index,
+		"squad_name": squad_name,
+		"clone_ability_index": clone_ability_index
 	}
 	var file = FileAccess.open("user://save_data.json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(save_data))
@@ -112,6 +138,11 @@ func load_player_data():
 			unlocked_weapons  = data.get("unlocked_weapons", ["pistol"])
 			intro_seen        = data.get("intro_seen", false)
 			leaderboard       = data.get("leaderboard", [])
+			upgrades            = data.get("upgrades", {})
+			wins_spent          = data.get("wins_spent", 0)
+			clone_colour_index  = data.get("clone_colour_index", 0)
+			squad_name          = data.get("squad_name", "")
+			clone_ability_index = data.get("clone_ability_index", 0)
 			print("Welcome back, ", player_name, "! Wins: ", total_wins)
 	else:
 		print("No save found — new player!")

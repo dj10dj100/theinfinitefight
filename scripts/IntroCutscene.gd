@@ -177,4 +177,4 @@ func finish_cutscene():
 		GameManager.intro_seen = true
 		GameManager.save_player_data()
 
-	get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn")
+	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")

@@ -217,7 +217,7 @@ func build_ui():
 	back_btn.set_anchor(SIDE_BOTTOM, 0)
 	back_btn.offset_top    = 538
 	back_btn.offset_bottom = 568
-	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn"))
+	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
 	add_child(back_btn)
 
 func select_difficulty(diff: String, btn: Button):
@@ -235,4 +235,4 @@ func _on_save_pressed():
 		GameManager.save_player_data()
 		print("Difficulty changed to: ", chosen_difficulty)
 
-	get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn")
+	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")

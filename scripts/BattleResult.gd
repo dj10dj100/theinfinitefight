@@ -96,13 +96,22 @@ func build_result_ui(won: bool):
 	# Buttons
 	if won:
 		var deploy_btn = Button.new()
-		deploy_btn.text = "🗺  Deploy Again"
+		deploy_btn.text = "⚔  Fight Again!"
 		deploy_btn.add_theme_font_size_override("font_size", 22)
-		deploy_btn.set_anchor(SIDE_LEFT,  0.3); deploy_btn.set_anchor(SIDE_RIGHT, 0.7)
-		deploy_btn.set_anchor(SIDE_TOP,   0);   deploy_btn.set_anchor(SIDE_BOTTOM, 0)
-		deploy_btn.offset_top = 400;            deploy_btn.offset_bottom = 455
-		deploy_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn"))
+		deploy_btn.set_anchor(SIDE_LEFT,  0.25); deploy_btn.set_anchor(SIDE_RIGHT, 0.5)
+		deploy_btn.set_anchor(SIDE_TOP,   0);    deploy_btn.set_anchor(SIDE_BOTTOM, 0)
+		deploy_btn.offset_top = 400;             deploy_btn.offset_bottom = 455
+		deploy_btn.pressed.connect(_go_to_deploy)
 		add_child(deploy_btn)
+
+		var menu_btn2 = Button.new()
+		menu_btn2.text = "🏠  Main Menu"
+		menu_btn2.add_theme_font_size_override("font_size", 22)
+		menu_btn2.set_anchor(SIDE_LEFT,  0.5);  menu_btn2.set_anchor(SIDE_RIGHT, 0.75)
+		menu_btn2.set_anchor(SIDE_TOP,   0);    menu_btn2.set_anchor(SIDE_BOTTOM, 0)
+		menu_btn2.offset_top = 400;             menu_btn2.offset_bottom = 455
+		menu_btn2.pressed.connect(_go_to_menu)
+		add_child(menu_btn2)
 	else:
 		var retry_btn = Button.new()
 		retry_btn.text = "🔄  Try Again"
@@ -110,7 +119,7 @@ func build_result_ui(won: bool):
 		retry_btn.set_anchor(SIDE_LEFT,  0.25); retry_btn.set_anchor(SIDE_RIGHT, 0.5)
 		retry_btn.set_anchor(SIDE_TOP,   0);    retry_btn.set_anchor(SIDE_BOTTOM, 0)
 		retry_btn.offset_top = 400;             retry_btn.offset_bottom = 455
-		retry_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn"))
+		retry_btn.pressed.connect(_go_to_deploy)
 		add_child(retry_btn)
 
 		var quit_btn = Button.new()
@@ -119,5 +128,20 @@ func build_result_ui(won: bool):
 		quit_btn.set_anchor(SIDE_LEFT,  0.5);  quit_btn.set_anchor(SIDE_RIGHT, 0.75)
 		quit_btn.set_anchor(SIDE_TOP,   0);    quit_btn.set_anchor(SIDE_BOTTOM, 0)
 		quit_btn.offset_top = 400;             quit_btn.offset_bottom = 455
-		quit_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/NameSetup.tscn"))
+		quit_btn.pressed.connect(_go_to_menu)
 		add_child(quit_btn)
+
+# -----------------------------------------------
+# NAVIGATION — properly clean up before switching
+# -----------------------------------------------
+func _go_to_deploy():
+	SoundManager.play("click")
+	# Remove this result screen first, THEN change scene
+	# (otherwise it floats on top of the new screen!)
+	queue_free()
+	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+
+func _go_to_menu():
+	SoundManager.play("click")
+	queue_free()
+	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
