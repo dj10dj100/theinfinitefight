@@ -30,6 +30,7 @@ CloneRank="*res://scripts/CloneRank.gd"
 Achievements="*res://scripts/Achievements.gd"
 Killstreak="*res://scripts/Killstreak.gd"
 SecretCodes="*res://scripts/SecretCodes.gd"
+TouchControls="*res://scripts/TouchControls.gd"
 
 [display]
 
