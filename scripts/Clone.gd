@@ -111,6 +111,12 @@ func _physics_process(delta):
 	airstrike_cooldown = max(airstrike_cooldown - delta, 0.0)
 	landmine_cooldown  = max(landmine_cooldown  - delta, 0.0)
 
+	# Touch fire button — shoot while held
+	if is_player_controlled:
+		var touch = get_node_or_null("/root/TouchControls")
+		if touch and touch.fire_pressed and shoot_timer <= 0:
+			shoot()
+
 	if is_player_controlled:
 		handle_player_movement(delta)
 	elif is_player2_controlled:
@@ -165,10 +171,39 @@ func _input(event):
 # -----------------------------------------------
 func handle_player_movement(delta):
 	var direction = Vector3.ZERO
+
+	# --- Keyboard (desktop) ---
 	if Input.is_action_pressed("ui_up"):    direction -= transform.basis.z
 	if Input.is_action_pressed("ui_down"):  direction += transform.basis.z
 	if Input.is_action_pressed("ui_left"):  direction -= transform.basis.x
 	if Input.is_action_pressed("ui_right"): direction += transform.basis.x
+
+	# --- Virtual joystick (mobile) ---
+	var touch = get_node_or_null("/root/TouchControls")
+	if touch and touch.move_vector != Vector2.ZERO:
+		direction -= transform.basis.z * touch.move_vector.y
+		direction += transform.basis.x * touch.move_vector.x
+
+	# --- Touch look (swipe right side of screen) ---
+	if touch and touch.look_delta != Vector2.ZERO:
+		rotate_y(-touch.look_delta.x * mouse_sensitivity)
+
+	# --- Touch ability buttons ---
+	if touch:
+		if touch.key_g and grenade_cooldown <= 0:
+			_throw_grenade()
+		if touch.key_a and airstrike_cooldown <= 0:
+			_call_airstrike()
+		if touch.key_m and landmine_cooldown <= 0:
+			_plant_landmine()
+		if touch.key_e:
+			# Enter/exit helicopter via touch
+			for heli in get_tree().get_nodes_in_group("helicopter"):
+				if heli.has_method("_try_enter_helicopter") or heli.has_method("_exit_helicopter"):
+					if heli.is_player_in:
+						heli._exit_helicopter()
+					else:
+						heli._try_enter_helicopter()
 
 	if direction != Vector3.ZERO:
 		direction = direction.normalized()
@@ -254,17 +289,28 @@ func shoot():
 	# Shout a battle phrase!
 	VoiceLines.say_shoot(global_position)
 
-	# Muzzle flash at the tip of the gun!
 	var shoot_dir = -shoot_point.global_transform.basis.z.normalized()
 	Particles.muzzle_flash(shoot_point.global_position, shoot_dir)
 
-	var bullet = bullet_scene.instantiate()
-	bullet.global_position = shoot_point.global_position
-	bullet.direction = -shoot_point.global_transform.basis.z.normalized()
-	bullet.damage    = get_bullet_damage()
-	bullet.fired_by  = "clones"
-	bullet.shot_by   = self
-	get_tree().root.add_child(bullet)
+	# Each weapon fires differently!
+	match active_weapon:
+		"flamethrower":
+			_shoot_flamethrower()
+		"rocket_launcher":
+			_shoot_rocket()
+		"lightning_gun":
+			_shoot_lightning()
+		"grenade_launcher":
+			_shoot_grenade_launcher()
+		_:
+			# Regular bullet for all other weapons
+			var bullet = bullet_scene.instantiate()
+			bullet.global_position = shoot_point.global_position
+			bullet.direction = shoot_dir
+			bullet.damage    = get_bullet_damage()
+			bullet.fired_by  = "clones"
+			bullet.shot_by   = self
+			get_tree().root.add_child(bullet)
 
 # Sniper clone swaps between sniper rifle and secondary weapon
 func swap_weapon():
@@ -304,7 +350,11 @@ func get_max_ammo(w: String) -> int:
 		"sniper":        return 1
 		"smg":           return 70
 		"arnies_raygun": return 1000000000   # Basically infinite!
-		"minigun":       return 1000
+		"minigun":           return 1000
+		"flamethrower":      return 100
+		"rocket_launcher":   return 4
+		"lightning_gun":     return 20
+		"grenade_launcher":  return 6
 	return 15
 
 # How long does it take to reload each weapon?
@@ -317,7 +367,11 @@ func get_reload_time() -> float:
 		"sniper":        return 2.5
 		"smg":           return 2.5
 		"arnies_raygun": return 0.0   # Never reloads
-		"minigun":       return 3.0
+		"minigun":           return 3.0
+		"flamethrower":      return 3.0
+		"rocket_launcher":   return 3.5
+		"lightning_gun":     return 2.0
+		"grenade_launcher":  return 2.5
 	return 2.0
 
 # How fast does this weapon fire?
@@ -330,8 +384,12 @@ func get_shoot_cooldown() -> float:
 		"assault_rifle": base = 0.3
 		"sniper":        base = 3.0
 		"smg":           base = 0.1
-		"arnies_raygun": base = 0.5
-		"minigun":       base = 0.08
+		"arnies_raygun":     base = 0.5
+		"minigun":           base = 0.08
+		"flamethrower":      base = 0.05
+		"rocket_launcher":   base = 2.5
+		"lightning_gun":     base = 0.8
+		"grenade_launcher":  base = 1.5
 	# Fast Reload upgrade: -20% cooldown per level
 	var reduction = 1.0 - GameManager.get_upgrade("fast_reload") * 0.20 if GameManager else 1.0
 	# Engineer class: shoots twice as fast!
@@ -349,8 +407,12 @@ func get_bullet_damage() -> float:
 		"assault_rifle": base = 10.0
 		"sniper":        base = 200.0
 		"smg":           base = 5.0
-		"arnies_raygun": base = 10.0
-		"minigun":       base = 50.0
+		"arnies_raygun":     base = 10.0
+		"minigun":           base = 50.0
+		"flamethrower":      base = 8.0
+		"rocket_launcher":   base = 150.0
+		"lightning_gun":     base = 60.0
+		"grenade_launcher":  base = 100.0
 	# Bigger Bullets upgrade: +25% damage per level
 	var upgrade_bonus = 1.0 + GameManager.get_upgrade("bigger_bullets") * 0.25 if GameManager else 1.0
 	return base * upgrade_bonus * rank_damage_bonus
@@ -483,6 +545,70 @@ func die():
 	Particles.death_explosion(global_position + Vector3(0, 0.8, 0), CLONE_COLOUR)
 	get_parent().on_clone_died(self)
 	queue_free()
+
+# -----------------------------------------------
+# NEW WEAPON SPECIAL FIRE MODES
+# -----------------------------------------------
+
+# FLAMETHROWER — sprays a cone of fire bullets in 3 directions
+func _shoot_flamethrower():
+	var base_dir = -shoot_point.global_transform.basis.z.normalized()
+	var spreads = [Vector3.ZERO, Vector3(0.15, 0, 0), Vector3(-0.15, 0, 0)]
+	for offset in spreads:
+		var b = bullet_scene.instantiate()
+		b.global_position = shoot_point.global_position
+		b.direction = (base_dir + offset).normalized()
+		b.damage    = get_bullet_damage()
+		b.fired_by  = "clones"
+		b.shot_by   = self
+		b.lifetime  = 0.4   # Short range — flames fade fast!
+		b.speed     = 18.0
+		get_tree().root.add_child(b)
+
+# ROCKET LAUNCHER — fires an explosive rocket!
+func _shoot_rocket():
+	var shoot_dir = -shoot_point.global_transform.basis.z.normalized()
+	var rocket = Node3D.new()
+	rocket.set_script(load("res://scripts/Rocket.gd"))
+	rocket.set("direction", shoot_dir)
+	rocket.set("damage", get_bullet_damage())
+	rocket.set("fired_by", "clones")
+	rocket.set("shot_by", self)
+	rocket.global_position = shoot_point.global_position
+	get_tree().root.add_child(rocket)
+
+# LIGHTNING GUN — instant hit on nearest enemy, chains to nearby ones too!
+func _shoot_lightning():
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	var primary = null
+	var nearest_dist = 30.0
+	for enemy in enemies:
+		var dist = global_position.distance_to(enemy.global_position)
+		if dist < nearest_dist:
+			nearest_dist = dist
+			primary = enemy
+	if primary == null:
+		return
+	# Zap the main target
+	primary.take_damage(get_bullet_damage())
+	Particles.hit_sparks(primary.global_position)
+	# Chain to nearby enemies for half damage (like electricity jumping!)
+	for enemy in enemies:
+		if enemy != primary and primary.global_position.distance_to(enemy.global_position) <= 6.0:
+			enemy.take_damage(get_bullet_damage() * 0.5)
+			Particles.hit_sparks(enemy.global_position)
+	print("⚡ ZAP! Lightning strikes!")
+
+# GRENADE LAUNCHER — bouncing grenade that explodes after a short delay
+func _shoot_grenade_launcher():
+	var shoot_dir = -shoot_point.global_transform.basis.z.normalized()
+	var gl = Node3D.new()
+	gl.set_script(load("res://scripts/BouncingGrenade.gd"))
+	gl.set("velocity_vec", shoot_dir * 14.0 + Vector3(0, 6.0, 0))
+	gl.set("damage", get_bullet_damage())
+	gl.set("fired_by", "clones")
+	gl.global_position = shoot_point.global_position + Vector3(0, 0.5, 0)
+	get_tree().root.add_child(gl)
 
 # -----------------------------------------------
 # SPECIAL ABILITIES

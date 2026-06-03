@@ -109,6 +109,8 @@ func _ready():
 	else:
 		# Spawn one jeep at the player side
 		_spawn_jeep()
+		# Spawn a helicopter too!
+		_spawn_helicopter()
 
 	# Spawn traps that were placed on the deploy screen
 	_spawn_traps()
@@ -511,6 +513,13 @@ func _spawn_jeep():
 	jeep.position = Vector3(10.0, 0.1, -8.0)
 	add_child(jeep)
 	print("🚗 A jeep has spawned! Click it to drive.")
+
+func _spawn_helicopter():
+	var heli = CharacterBody3D.new()
+	heli.set_script(load("res://scripts/Helicopter.gd"))
+	heli.position = Vector3(-10.0, 0.1, -8.0)
+	add_child(heli)
+	print("🚁 A helicopter has spawned! Walk up and press E to fly it.")
 
 # -----------------------------------------------
 # TRAPS — spawn walls/spikes saved in GameManager

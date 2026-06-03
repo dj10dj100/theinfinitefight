@@ -106,6 +106,22 @@ ArmyGame/ArmyGame/
 
 ---
 
+## Touch Controls (Mobile)
+
+`TouchControls.gd` is an AutoLoad CanvasLayer. It only shows on touchscreen devices (phones/tablets). It exposes:
+
+| Variable | What it does |
+|---|---|
+| `move_vector` | Vector2 (-1..1) from the joystick — read by Clone.gd |
+| `look_delta` | Pixel delta from right-side swipe — Clone.gd uses it to rotate |
+| `fire_pressed` | True while the fire button is held |
+| `key_g/a/m` | One-shot flags for grenade/airstrike/mine buttons |
+| `key_e` | One-shot flag for helicopter enter/exit button |
+
+On desktop (keyboard + mouse) the overlay is invisible — no changes to how the game plays.
+
+---
+
 ## AutoLoad Singletons
 
 These are always available by name from any script:
@@ -153,6 +169,22 @@ Weapons unlock every 5 wins. Full list in `GameManager.all_weapons`:
 | `smg` | SMG | 70 | 5 | very fast |
 | `minigun` | Minigun | 1000 | 50 | extremely fast |
 | `arnies_raygun` | Arnie's Raygun | ∞ | 10 | moderate |
+| `flamethrower` | Flamethrower | 100 | 8 (×3 spray) | extremely fast |
+| `rocket_launcher` | Rocket Launcher | 4 | 150 (area) | very slow |
+| `lightning_gun` | Lightning Gun | 20 | 60 (chains) | moderate |
+| `grenade_launcher` | Grenade Launcher | 6 | 100 (area) | slow |
+
+New files added in Phase 15: `Rocket.gd`, `BouncingGrenade.gd`, `Helicopter.gd`
+
+### Helicopter
+
+Spawns on the battlefield at (-10, 0.1, -8). Walk up and press **E** to get in.
+- **WASD** — fly forward/back/strafe
+- **Space** — go up
+- **Shift** — go down
+- **Mouse** — look around
+- **Left click** — shoot (40 damage, fires downward)
+- **E** — jump out
 
 Ammo and reload are in `Clone.gd` — `get_max_ammo()`, `get_reload_time()`, `get_shoot_cooldown()`, `get_bullet_damage()`.
 
@@ -301,6 +333,8 @@ Extra runtime data uses `GameManager.set_meta() / get_meta() / has_meta()` for t
 | 13 | Wave mode, clone classes, traps, jeep vehicle |
 | 14 | Secret codes, level editor, main menu |
 | — | Full weapon system: ammo, reload, 8 weapons with Daniel's exact stats |
+| 15 | 4 new weapons (Flamethrower, Rocket Launcher, Lightning Gun, Grenade Launcher) + flyable Helicopter |
+| 16 | Touch controls for mobile — virtual joystick, fire button, ability buttons, helicopter button |
 
 ---
 

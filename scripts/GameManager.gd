@@ -23,7 +23,7 @@ var intro_seen: bool = false
 var deploy_data: Array = []
 
 # All the weapons in order. You start with just the pistol!
-var all_weapons: Array = ["pistol", "revolver", "shotgun", "assault_rifle", "sniper", "smg", "minigun", "arnies_raygun"]
+var all_weapons: Array = ["pistol", "revolver", "shotgun", "assault_rifle", "sniper", "smg", "minigun", "arnies_raygun", "flamethrower", "rocket_launcher", "lightning_gun", "grenade_launcher"]
 
 # Which weapons you've unlocked so far (starts with just pistol)
 var unlocked_weapons: Array = ["pistol"]
