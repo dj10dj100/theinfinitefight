@@ -17,6 +17,7 @@ var tracked_clone = null   # The clone we're currently controlling
 var health_bar:    ProgressBar
 var health_label:  Label
 var weapon_label:  Label
+var ammo_label:    Label       # Shows bullets left / max + RELOADING
 var swap_hint:     Label
 var vignette:      ColorRect   # Red glow around the edges when low health
 
@@ -117,7 +118,7 @@ func build_hud():
 	weapon_bg.set_anchor(SIDE_BOTTOM, 1)
 	weapon_bg.offset_left   = -240
 	weapon_bg.offset_right  = -20
-	weapon_bg.offset_top    = -80
+	weapon_bg.offset_top    = -108
 	weapon_bg.offset_bottom = -20
 	root.add_child(weapon_bg)
 
@@ -139,12 +140,22 @@ func build_hud():
 	weapon_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	weapon_bg.add_child(weapon_label)
 
+	# Ammo counter — shown below the weapon name
+	ammo_label = Label.new()
+	ammo_label.text = "15 / 15"
+	ammo_label.add_theme_font_size_override("font_size", 18)
+	ammo_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	ammo_label.position = Vector2(8, 50)
+	ammo_label.size     = Vector2(210, 26)
+	ammo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weapon_bg.add_child(ammo_label)
+
 	# Swap hint (only visible for sniper clones)
 	swap_hint = Label.new()
 	swap_hint.text = "[ R ] — swap weapon"
 	swap_hint.add_theme_font_size_override("font_size", 12)
 	swap_hint.add_theme_color_override("font_color", Color(0.6, 1.0, 0.6))
-	swap_hint.position = Vector2(8, 50)
+	swap_hint.position = Vector2(8, 76)
 	swap_hint.size     = Vector2(210, 18)
 	swap_hint.visible  = false
 	swap_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -272,15 +283,37 @@ func _process(_delta: float) -> void:
 
 	# --- Weapon name ---
 	var weapon_names = {
-		"pistol":        "Pistol",
-		"revolver":      "Revolver",
-		"shotgun":       "Shotgun",
-		"assault_rifle": "Assault Rifle",
-		"machine_gun":   "Machine Gun",
-		"sniper":        "Sniper Rifle"
+		"pistol":        "🔫 Pistol",
+		"revolver":      "🔫 Revolver",
+		"shotgun":       "💥 Shotgun",
+		"assault_rifle": "⚙ Assault Rifle",
+		"sniper":        "🎯 Sniper Rifle",
+		"smg":           "💨 SMG",
+		"arnies_raygun": "🔴 Arnie's Raygun",
+		"minigun":       "🌀 Minigun"
 	}
 	var active = tracked_clone.active_weapon if "active_weapon" in tracked_clone else tracked_clone.weapon
 	weapon_label.text = weapon_names.get(active, active.capitalize())
+
+	# --- Ammo counter ---
+	if "ammo" in tracked_clone:
+		if tracked_clone.get("is_reloading"):
+			ammo_label.text = "🔄 RELOADING..."
+			ammo_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.1))
+		elif active == "arnies_raygun":
+			ammo_label.text = "∞  INFINITE"
+			ammo_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.4))
+		else:
+			var cur = tracked_clone.ammo
+			var mx  = tracked_clone.max_ammo
+			ammo_label.text = str(cur) + " / " + str(mx)
+			# Colour: green when full, yellow when low, red when nearly empty
+			if cur > mx * 0.5:
+				ammo_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+			elif cur > mx * 0.2:
+				ammo_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.1))
+			else:
+				ammo_label.add_theme_color_override("font_color", Color(1.0, 0.25, 0.25))
 
 	# --- Swap hint (only for snipers with a secondary weapon) ---
 	var has_secondary = "secondary_weapon" in tracked_clone and tracked_clone.secondary_weapon != ""

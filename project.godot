@@ -29,6 +29,7 @@ VoiceLines="*res://scripts/VoiceLines.gd"
 CloneRank="*res://scripts/CloneRank.gd"
 Achievements="*res://scripts/Achievements.gd"
 Killstreak="*res://scripts/Killstreak.gd"
+SecretCodes="*res://scripts/SecretCodes.gd"
 
 [display]
 

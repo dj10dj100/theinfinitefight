@@ -20,6 +20,19 @@ func build_ui():
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
+	# ── Secret code hint (tiny, bottom of screen) ──
+	var secret_hint = Label.new()
+	secret_hint.text = "🔒 Psst... try typing secret codes on your keyboard!"
+	secret_hint.add_theme_font_size_override("font_size", 11)
+	secret_hint.add_theme_color_override("font_color", Color(0.35, 0.35, 0.45))
+	secret_hint.set_anchor(SIDE_LEFT,  0); secret_hint.set_anchor(SIDE_RIGHT,  1)
+	secret_hint.set_anchor(SIDE_TOP,   1); secret_hint.set_anchor(SIDE_BOTTOM, 1)
+	secret_hint.offset_top    = -22
+	secret_hint.offset_bottom = -4
+	secret_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	secret_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(secret_hint)
+
 	# ── Title ──
 	var title = Label.new()
 	title.text = "⚔  THE INFINITE FIGHT  ⚔"
@@ -384,13 +397,29 @@ func _build_bottom_bar():
 	)
 	add_child(settings_btn)
 
+	# Level Editor button
+	var editor_btn = Button.new()
+	editor_btn.text = "🛠  Level Editor"
+	editor_btn.add_theme_font_size_override("font_size", 18)
+	editor_btn.set_anchor(SIDE_LEFT,   1); editor_btn.set_anchor(SIDE_RIGHT,  1)
+	editor_btn.set_anchor(SIDE_TOP,    1); editor_btn.set_anchor(SIDE_BOTTOM, 1)
+	editor_btn.offset_left   = -380
+	editor_btn.offset_right  = -200
+	editor_btn.offset_top    = -65
+	editor_btn.offset_bottom = -10
+	editor_btn.pressed.connect(func():
+		SoundManager.play("click")
+		get_tree().change_scene_to_file("res://scenes/LevelEditor.tscn")
+	)
+	add_child(editor_btn)
+
 	# Big DEPLOY button on the right
 	var deploy_btn = Button.new()
-	deploy_btn.text = "🗺  DEPLOY CLONES  ➜"
+	deploy_btn.text = "🗺  DEPLOY  ➜"
 	deploy_btn.add_theme_font_size_override("font_size", 24)
 	deploy_btn.set_anchor(SIDE_LEFT,   1); deploy_btn.set_anchor(SIDE_RIGHT,  1)
 	deploy_btn.set_anchor(SIDE_TOP,    1); deploy_btn.set_anchor(SIDE_BOTTOM, 1)
-	deploy_btn.offset_left   = -380
+	deploy_btn.offset_left   = -195
 	deploy_btn.offset_right  = -10
 	deploy_btn.offset_top    = -65
 	deploy_btn.offset_bottom = -10

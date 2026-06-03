@@ -16,6 +16,13 @@ extends CharacterBody3D
 # Sniper clones can switch between their two weapons
 var active_weapon: String = ""     # Which weapon is currently active
 
+# AMMO SYSTEM — each weapon has its own magazine size
+# When ammo hits 0, the clone has to reload before shooting again!
+var ammo: int = 15           # Bullets left in current magazine
+var max_ammo: int = 15       # Full magazine size
+var is_reloading: bool = false
+var reload_timer: float = 0.0
+
 # Load the bullet scene so we can fire bullets!
 var bullet_scene = preload("res://scenes/Bullet.tscn")
 
@@ -71,6 +78,9 @@ func _ready():
 	active_weapon = weapon
 	if weapon == "sniper":
 		shoot_range = 30.0
+	# Fill the magazine for whichever weapon this clone starts with
+	max_ammo = get_max_ammo(active_weapon)
+	ammo     = max_ammo
 
 	# Hide the plain capsule and build a proper plastic army man instead!
 	mesh_instance.visible = false
@@ -86,6 +96,15 @@ func _physics_process(delta):
 		velocity.y -= gravity * delta
 
 	shoot_timer -= delta
+
+	# Reload countdown — when it finishes, refill the magazine!
+	if is_reloading:
+		reload_timer -= delta
+		if reload_timer <= 0.0:
+			is_reloading = false
+			ammo = max_ammo
+			if is_player_controlled:
+				print("✅ Reloaded! ", ammo, " bullets ready.")
 
 	# Tick down the special ability cooldowns every frame
 	grenade_cooldown   = max(grenade_cooldown   - delta, 0.0)
@@ -212,7 +231,22 @@ func handle_ai(delta):
 # SHOOT — spawns a real bullet!
 # -----------------------------------------------
 func shoot():
+	# Can't shoot while reloading!
+	if is_reloading:
+		return
+
+	# Out of ammo? Start reloading instead!
+	if ammo <= 0:
+		_start_reload()
+		return
+
+	# Fire! Use one bullet.
+	ammo -= 1
 	shoot_timer = get_shoot_cooldown()
+
+	# Auto-reload when the last bullet is fired
+	if ammo <= 0:
+		_start_reload()
 
 	# Play the right gunshot sound for the weapon!
 	SoundManager.play("shoot_" + active_weapon)
@@ -240,7 +274,51 @@ func swap_weapon():
 	else:
 		active_weapon = weapon
 		shoot_range = 30.0   # Back to sniper range
+	# Refill ammo for the weapon we just switched to
+	max_ammo     = get_max_ammo(active_weapon)
+	ammo         = max_ammo
+	is_reloading = false
 	print("Switched to: ", active_weapon)
+
+# Start a reload — fills up the magazine after a short wait
+func _start_reload():
+	if is_reloading:
+		return
+	# Arnie's Raygun never needs to reload — infinite power!
+	if active_weapon == "arnies_raygun":
+		ammo = max_ammo
+		return
+	is_reloading  = true
+	reload_timer  = get_reload_time()
+	if is_player_controlled:
+		print("🔄 Reloading... (", reload_timer, "s)")
+	SoundManager.play("click")
+
+# How many bullets in a full magazine?
+func get_max_ammo(w: String) -> int:
+	match w:
+		"pistol":        return 15
+		"revolver":      return 6
+		"shotgun":       return 5
+		"assault_rifle": return 30
+		"sniper":        return 1
+		"smg":           return 70
+		"arnies_raygun": return 1000000000   # Basically infinite!
+		"minigun":       return 1000
+	return 15
+
+# How long does it take to reload each weapon?
+func get_reload_time() -> float:
+	match active_weapon:
+		"pistol":        return 1.5
+		"revolver":      return 2.0
+		"shotgun":       return 2.5
+		"assault_rifle": return 2.0
+		"sniper":        return 2.5
+		"smg":           return 2.5
+		"arnies_raygun": return 0.0   # Never reloads
+		"minigun":       return 3.0
+	return 2.0
 
 # How fast does this weapon fire?
 func get_shoot_cooldown() -> float:
@@ -250,8 +328,10 @@ func get_shoot_cooldown() -> float:
 		"revolver":      base = 2.0
 		"shotgun":       base = 2.2
 		"assault_rifle": base = 0.3
-		"machine_gun":   base = 0.15
 		"sniper":        base = 3.0
+		"smg":           base = 0.1
+		"arnies_raygun": base = 0.5
+		"minigun":       base = 0.08
 	# Fast Reload upgrade: -20% cooldown per level
 	var reduction = 1.0 - GameManager.get_upgrade("fast_reload") * 0.20 if GameManager else 1.0
 	# Engineer class: shoots twice as fast!
@@ -263,12 +343,14 @@ func get_shoot_cooldown() -> float:
 func get_bullet_damage() -> float:
 	var base = 20.0
 	match active_weapon:
-		"pistol":        base = 20.0
-		"revolver":      base = 35.0
-		"shotgun":       base = 60.0
-		"assault_rifle": base = 15.0
-		"machine_gun":   base = 10.0
-		"sniper":        base = 90.0
+		"pistol":        base = 15.0
+		"revolver":      base = 25.0
+		"shotgun":       base = 30.0
+		"assault_rifle": base = 10.0
+		"sniper":        base = 200.0
+		"smg":           base = 5.0
+		"arnies_raygun": base = 10.0
+		"minigun":       base = 50.0
 	# Bigger Bullets upgrade: +25% damage per level
 	var upgrade_bonus = 1.0 + GameManager.get_upgrade("bigger_bullets") * 0.25 if GameManager else 1.0
 	return base * upgrade_bonus * rank_damage_bonus

@@ -113,6 +113,9 @@ func _ready():
 	# Spawn traps that were placed on the deploy screen
 	_spawn_traps()
 
+	# Spawn any objects placed in the Level Editor
+	_spawn_editor_objects()
+
 	# Reset killstreak for the new battle
 	Killstreak.reset()
 	Achievements.coins_spent_battle = 0
@@ -121,6 +124,11 @@ func _ready():
 	_build_coin_hud()
 
 	print("Battle started! Your clones: ", clones_on_field.size(), "  Enemies: ", enemies_on_field.size())
+
+	# Instant win cheat!
+	if SecretCodes and SecretCodes.has_cheat("instant_win"):
+		await get_tree().create_timer(0.5).timeout
+		battle_won()
 
 func spawn_clones_from_deploy(deploy_data: Array):
 	var clone_scene = load("res://scenes/Clone.tscn")
@@ -165,14 +173,24 @@ func _apply_upgrades_to_clone(clone):
 		"sniper_eye":
 			clone.shoot_range *= 1.30
 
-	# Apply chosen clone colour
-	var colours = [
-		Color(0.30,0.38,0.16), Color(0.15,0.30,0.65), Color(0.65,0.10,0.10),
-		Color(0.40,0.10,0.55), Color(0.75,0.35,0.05), Color(0.88,0.88,0.88),
-		Color(0.85,0.35,0.55), Color(0.80,0.75,0.05),
-	]
-	var cidx = clamp(GameManager.clone_colour_index, 0, colours.size()-1)
-	clone.custom_colour = colours[cidx]
+	# Apply chosen clone colour (secret skin overrides this!)
+	var secret_col = SecretCodes.get_secret_colour() if SecretCodes else Color(-1,-1,-1)
+	if secret_col.r >= 0:
+		clone.custom_colour = secret_col
+	else:
+		var colours = [
+			Color(0.30,0.38,0.16), Color(0.15,0.30,0.65), Color(0.65,0.10,0.10),
+			Color(0.40,0.10,0.55), Color(0.75,0.35,0.05), Color(0.88,0.88,0.88),
+			Color(0.85,0.35,0.55), Color(0.80,0.75,0.05),
+		]
+		var cidx = clamp(GameManager.clone_colour_index, 0, colours.size()-1)
+		clone.custom_colour = colours[cidx]
+
+	# Secret cheats!
+	if SecretCodes and SecretCodes.has_cheat("superspeed"):
+		clone.move_speed *= 3.0
+	if SecretCodes and SecretCodes.has_cheat("invincible"):
+		clone.activate_shield(999)   # Effectively invincible
 
 func get_enemy_health_multiplier() -> float:
 	var diff = game_manager.difficulty if game_manager else "medium"
@@ -508,6 +526,92 @@ func _spawn_traps():
 		trap.set("trap_type", t["type"])
 		trap.position = t["position"]
 		add_child(trap)
+
+# -----------------------------------------------
+# LEVEL EDITOR OBJECTS — trees, rocks, walls, bushes
+# -----------------------------------------------
+func _spawn_editor_objects():
+	if not GameManager or not GameManager.has_meta("editor_objects"):
+		return
+	var objects = GameManager.get_meta("editor_objects")
+	for obj in objects:
+		_spawn_editor_object(obj["type"], obj["position"])
+
+func _spawn_editor_object(type: String, pos: Vector3):
+	match type:
+		"tree":
+			_spawn_tree(pos)
+		"rock":
+			_spawn_rock(pos)
+		"wall":
+			var trap = StaticBody3D.new()
+			trap.set_script(load("res://scripts/Trap.gd"))
+			trap.set("trap_type", "wall")
+			trap.position = pos
+			add_child(trap)
+		"bush":
+			_spawn_bush(pos)
+
+func _spawn_tree(pos: Vector3):
+	var trunk = MeshInstance3D.new()
+	trunk.mesh = CylinderMesh.new()
+	trunk.mesh.top_radius    = 0.12
+	trunk.mesh.bottom_radius = 0.18
+	trunk.mesh.height        = 1.2
+	var tmat = StandardMaterial3D.new()
+	tmat.albedo_color = Color(0.35, 0.22, 0.10)
+	trunk.set_surface_override_material(0, tmat)
+	trunk.position = pos + Vector3(0, 0.6, 0)
+	add_child(trunk)
+	var leaves = MeshInstance3D.new()
+	leaves.mesh = SphereMesh.new()
+	leaves.mesh.radius = 0.75
+	leaves.mesh.height = 1.5
+	var lmat = StandardMaterial3D.new()
+	lmat.albedo_color = Color(0.15, 0.48, 0.12)
+	leaves.set_surface_override_material(0, lmat)
+	leaves.position = pos + Vector3(0, 1.8, 0)
+	add_child(leaves)
+	# Collision so enemies and clones can't walk through
+	var body = StaticBody3D.new()
+	var col = CollisionShape3D.new()
+	col.shape = CylinderShape3D.new()
+	col.shape.radius = 0.25
+	col.shape.height = 2.0
+	body.add_child(col)
+	body.position = pos + Vector3(0, 1.0, 0)
+	add_child(body)
+
+func _spawn_rock(pos: Vector3):
+	var mesh = MeshInstance3D.new()
+	mesh.mesh = SphereMesh.new()
+	mesh.mesh.radius = 0.5
+	mesh.mesh.height = 0.7
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.45, 0.42, 0.38)
+	mat.roughness = 0.9
+	mesh.set_surface_override_material(0, mat)
+	mesh.position = pos + Vector3(0, 0.35, 0)
+	add_child(mesh)
+	var body = StaticBody3D.new()
+	var col = CollisionShape3D.new()
+	col.shape = SphereShape3D.new()
+	col.shape.radius = 0.5
+	body.add_child(col)
+	body.position = pos + Vector3(0, 0.35, 0)
+	add_child(body)
+
+func _spawn_bush(pos: Vector3):
+	var mesh = MeshInstance3D.new()
+	mesh.mesh = SphereMesh.new()
+	mesh.mesh.radius = 0.55
+	mesh.mesh.height = 0.8
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.18, 0.50, 0.16)
+	mat.roughness = 0.8
+	mesh.set_surface_override_material(0, mat)
+	mesh.position = pos + Vector3(0, 0.4, 0)
+	add_child(mesh)
 
 # -----------------------------------------------
 # ENEMY DIED — tell WaveManager if wave mode is on
