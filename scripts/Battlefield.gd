@@ -120,6 +120,10 @@ func _ready():
 
 	# Reset killstreak for the new battle
 	Killstreak.reset()
+	# Start medal tracking!
+	Medals.battle_start()
+	# Start sky drop timer — a power-up crate falls every 25 seconds!
+	_start_sky_drop_timer()
 	Achievements.coins_spent_battle = 0
 
 	# Build the coin + upgrade HUD (top-left corner)
@@ -151,9 +155,11 @@ func spawn_clones_from_deploy(deploy_data: Array):
 		add_child(clone)
 		clones_on_field.append(clone)
 
-	# Apply upgrade bonuses to every spawned clone
-	for clone in clones_on_field:
-		_apply_upgrades_to_clone(clone)
+	# Apply upgrade bonuses and backpacks to every spawned clone
+	for i in range(clones_on_field.size()):
+		_apply_upgrades_to_clone(clones_on_field[i])
+		var bp = Backpack.get_backpack_for_slot(i)
+		Backpack.apply(clones_on_field[i], bp)
 
 	print("Spawned ", deploy_data.size(), " clones from deploy screen!")
 
@@ -416,9 +422,14 @@ func battle_won():
 		Achievements.unlock("last_stand_win")
 	if clones_on_field.size() == 1:
 		Achievements.unlock("survivor")
+	# Award medals!
+	var alive   = clones_on_field.size()
+	var total   = game_manager.deploy_data.size() if game_manager else alive
+	Medals.battle_end(true, alive, total)
 	show_result(true)
 
 func battle_lost():
+	Medals.battle_end(false, 0, 0)
 	show_result(false)
 
 # -----------------------------------------------
@@ -513,6 +524,25 @@ func _spawn_jeep():
 	jeep.position = Vector3(10.0, 0.1, -8.0)
 	add_child(jeep)
 	print("🚗 A jeep has spawned! Click it to drive.")
+
+func _start_sky_drop_timer():
+	while not battle_over:
+		await get_tree().create_timer(25.0).timeout
+		if not battle_over:
+			_spawn_sky_drop()
+
+func _spawn_sky_drop():
+	var drop = Node3D.new()
+	drop.set_script(load("res://scripts/SkyDrop.gd"))
+	# Random position on the battlefield
+	drop.position = Vector3(randf_range(-12.0, 12.0), 25.0, randf_range(-8.0, 8.0))
+	add_child(drop)
+	print("📦 Sky drop incoming!")
+	# Auto-despawn after 20s if uncollected
+	get_tree().create_timer(20.0).timeout.connect(func():
+		if is_instance_valid(drop):
+			drop.queue_free()
+	)
 
 func _spawn_helicopter():
 	var heli = CharacterBody3D.new()

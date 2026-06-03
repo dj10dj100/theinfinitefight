@@ -18,6 +18,7 @@ const CODES = {
 	"INVINCIBLE": {"type": "cheat",   "key": "invincible", "msg": "🛡 INVINCIBLE cheat activated!"},
 	"DANIELWIN":  {"type": "cheat",   "key": "instant_win","msg": "🏆 INSTANT WIN cheat activated!"},
 	"12367":      {"type": "master",  "key": "master",     "msg": "🌟 MASTER CODE — EVERYTHING UNLOCKED!"},
+	"2345":       {"type": "allguns", "key": "allguns",    "msg": "🔫 ALL GUNS UNLOCKED!"},
 }
 
 var _typed: String = ""          # Letters typed so far
@@ -107,6 +108,12 @@ func _trigger(code: String):
 						unlocked_cheats.append(info2["key"])
 			if GameManager:
 				GameManager.unlocked_weapons = GameManager.all_weapons.duplicate()
+
+		"allguns":
+			# Unlock every gun — no skins or cheats, just the guns!
+			if GameManager:
+				GameManager.unlocked_weapons = GameManager.all_weapons.duplicate()
+				GameManager.save_player_data()
 
 	_save()
 	SoundManager.play("victory_sting")

@@ -106,6 +106,22 @@ ArmyGame/ArmyGame/
 
 ---
 
+## Phase 17
+
+### Medals & Trophies
+`Medals.gd` is an AutoLoad. 10 medals total. Call `Medals.battle_start()` at battle start and `Medals.battle_end(won, alive, total)` at end. Medals slide in from the right side of the screen. Saved in GameManager meta as `"medal_<key>"`.
+
+### Sky Drops
+`SkyDrop.gd` — a power-up crate falls from the sky every 25 seconds (spawned by `Battlefield._start_sky_drop_timer()`). Walk over it to collect. Types: speed_boost, invincibility, mega_damage, full_heal, ammo_drop. Auto-despawns after 20s.
+
+### Backpacks
+`Backpack.gd` is an AutoLoad. Assign per clone slot via `Backpack.set_backpack_for_slot(index, type)`. Applied in `Battlefield.spawn_clones_from_deploy`. Types: ammo_pack, armour_plate, jetpack (Space to leap), medkit (5 HP/s), grenade_bag (-50% grenade cooldown). Visually shown as a coloured box on the clone's back.
+
+### Enemy Taunts
+Enemies now shout insults when shooting (`VoiceLines.say_enemy_taunt`) and last words when dying (`VoiceLines.say_enemy_death`). Taunts appear as red speech bubbles.
+
+---
+
 ## New Enemy Types (Phase 16)
 
 Set via `enemy_type` export on Enemy.gd. Enemies randomly get a type in `_ready()`:
@@ -372,6 +388,7 @@ Extra runtime data uses `GameManager.set_meta() / get_meta() / has_meta()` for t
 | 15 | 4 new weapons (Flamethrower, Rocket Launcher, Lightning Gun, Grenade Launcher) + flyable Helicopter |
 | 16 | Touch controls for mobile — virtual joystick, fire button, ability buttons, helicopter button |
 | 16b | Phase 16 MEGA update: new enemy types (ninja/heavy/kamikaze), new maps (Night City, Volcano), funny clone dialogue, 3-phase boss battles, daily challenges |
+| 17 | Medals & Trophies (Medals.gd), Sky Drop power-ups (SkyDrop.gd), Clone Backpacks (Backpack.gd), Enemy taunts |
 | — | Bug fixes: modulate:a on 3D nodes (Airstrike, BattleCoin, Particles), look_at before tree insert (Particles bullet_trail) |
 
 ---

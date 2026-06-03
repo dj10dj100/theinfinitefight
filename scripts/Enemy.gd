@@ -257,6 +257,7 @@ func shoot():
 	shoot_timer = 1.8  # Enemies fire a bit slower than your clones
 
 	SoundManager.play("shoot_" + weapon, -4.0)
+	VoiceLines.say_enemy_taunt(global_position)
 	var shoot_dir = -shoot_point.global_transform.basis.z.normalized()
 	Particles.muzzle_flash(shoot_point.global_position, shoot_dir)
 
@@ -325,7 +326,8 @@ func take_damage(amount: float):
 func die():
 	print("An enemy has been defeated!")
 	SoundManager.play("death")
-	Particles.death_explosion(global_position + Vector3(0, 0.8, 0), ENEMY_COLOUR)
+	VoiceLines.say_enemy_death(global_position)
+	Particles.death_explosion(global_position + Vector3(0, 0.8, 0), _get_type_colour())
 
 	# Drop a coin!
 	var coin = Area3D.new()

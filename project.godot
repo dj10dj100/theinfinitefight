@@ -32,6 +32,8 @@ Killstreak="*res://scripts/Killstreak.gd"
 SecretCodes="*res://scripts/SecretCodes.gd"
 TouchControls="*res://scripts/TouchControls.gd"
 DailyChallenge="*res://scripts/DailyChallenge.gd"
+Medals="*res://scripts/Medals.gd"
+Backpack="*res://scripts/Backpack.gd"
 
 [display]
 

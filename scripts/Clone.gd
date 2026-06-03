@@ -205,6 +205,11 @@ func handle_player_movement(delta):
 					else:
 						heli._try_enter_helicopter()
 
+	# Jetpack — press Space to leap into the air!
+	if has_meta("has_jetpack") and Input.is_key_pressed(KEY_SPACE) and is_on_floor():
+		velocity.y = 10.0
+		print("🚀 JETPACK!")
+
 	if direction != Vector3.ZERO:
 		direction = direction.normalized()
 		velocity.x = direction.x * move_speed
@@ -401,18 +406,22 @@ func get_shoot_cooldown() -> float:
 func get_bullet_damage() -> float:
 	var base = 20.0
 	match active_weapon:
-		"pistol":        base = 15.0
-		"revolver":      base = 25.0
-		"shotgun":       base = 30.0
-		"assault_rifle": base = 10.0
-		"sniper":        base = 200.0
-		"smg":           base = 5.0
-		"arnies_raygun":     base = 10.0
-		"minigun":           base = 50.0
-		"flamethrower":      base = 8.0
-		"rocket_launcher":   base = 150.0
-		"lightning_gun":     base = 60.0
-		"grenade_launcher":  base = 100.0
+		# Each weapon does 5 more damage than the last!
+		# Unlock order: pistol(1) revolver(2) shotgun(3) assault_rifle(4)
+		#   sniper(5) smg(6) minigun(7) arnies_raygun(8)
+		#   flamethrower(9) rocket_launcher(10) lightning_gun(11) grenade_launcher(12)
+		"pistol":            base = 15.0
+		"revolver":          base = 20.0
+		"shotgun":           base = 25.0
+		"assault_rifle":     base = 30.0
+		"sniper":            base = 35.0
+		"smg":               base = 40.0
+		"minigun":           base = 45.0
+		"arnies_raygun":     base = 50.0
+		"flamethrower":      base = 55.0
+		"rocket_launcher":   base = 60.0
+		"lightning_gun":     base = 65.0
+		"grenade_launcher":  base = 70.0
 	# Bigger Bullets upgrade: +25% damage per level
 	var upgrade_bonus = 1.0 + GameManager.get_upgrade("bigger_bullets") * 0.25 if GameManager else 1.0
 	return base * upgrade_bonus * rank_damage_bonus
@@ -460,12 +469,20 @@ func _update_ability(delta: float):
 					if is_instance_valid(c) and global_position.distance_to(c.global_position) <= 6.0:
 						c.health = min(c.health + 4.0, 100.0)
 		"demolitions":
-			# Grenade cooldown is halved — handled in get_shoot_cooldown via the constant
-			# Also boost grenade damage (set on the grenade node in _throw_grenade)
 			pass
 		"engineer":
-			# Shoot twice as fast — handled via get_shoot_cooldown below
 			pass
+
+	# Backpack: medkit heals 5 HP/s
+	if has_meta("medkit_active"):
+		_medic_timer += delta
+		if _medic_timer >= 1.0:
+			_medic_timer = 0.0
+			health = min(health + 5.0, 100.0)
+
+	# Backpack: grenade bag — halve the grenade cooldown constant
+	if has_meta("grenade_bag"):
+		pass   # Applied when throwing (checked in _throw_grenade)
 
 func _update_animation(delta: float):
 	_is_moving = velocity.length() > 0.5 and is_on_floor()
@@ -615,7 +632,10 @@ func _shoot_grenade_launcher():
 # -----------------------------------------------
 func _throw_grenade():
 	# Demolitions class: cooldown is halved!
-	grenade_cooldown = GRENADE_CD * (0.5 if special_ability == "demolitions" else 1.0)
+	var cd_mult = 1.0
+	if special_ability == "demolitions": cd_mult *= 0.5
+	if has_meta("grenade_bag"):          cd_mult *= 0.5
+	grenade_cooldown = GRENADE_CD * cd_mult
 	SoundManager.play("click")
 	VoiceLines.say_grenade(global_position)
 	print("💣 GRENADE! Watch out!")

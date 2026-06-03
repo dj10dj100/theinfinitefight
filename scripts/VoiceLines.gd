@@ -84,13 +84,42 @@ const AIRSTRIKE_LINES = [
 	"They'll never see it coming!",
 ]
 
+const ENEMY_TAUNT_LINES = [
+	"You plastic fools!",
+	"Give up now!",
+	"The Rogue never loses!",
+	"Is that your best?!",
+	"Your clones are DONE!",
+	"Run away, little soldiers!",
+	"We outnumber you!",
+	"Surrender or be melted!",
+	"Ha! Pathetic!",
+	"You can't stop us!",
+	"Your commander is a joke!",
+	"We will crush you!",
+	"My grandmother shoots better!",
+	"Too slow!",
+	"Feel the wrath of The Rogue!",
+]
+
+const ENEMY_DEATH_TAUNTS = [
+	"This isn't over...",
+	"The Rogue will avenge me!",
+	"Lucky shot...",
+	"I'll be back!",
+	"Impossible...",
+	"Tell the General... I tried.",
+]
+
 # Only say something every so often — otherwise it gets too noisy!
-var _shoot_cooldown: float = 0.0
-var _hit_cooldown: float = 0.0
+var _shoot_cooldown:  float = 0.0
+var _hit_cooldown:    float = 0.0
+var _taunt_cooldown:  float = 0.0
 
 func _process(delta):
 	_shoot_cooldown = max(_shoot_cooldown - delta, 0.0)
 	_hit_cooldown   = max(_hit_cooldown   - delta, 0.0)
+	_taunt_cooldown = max(_taunt_cooldown - delta, 0.0)
 
 # -----------------------------------------------
 # CALL THESE FROM CLONE.GD
@@ -117,6 +146,21 @@ func say_hit(world_pos: Vector3):
 func say_death(world_pos: Vector3):
 	var line = DEATH_LINES[randi() % DEATH_LINES.size()]
 	_show_bubble(line, world_pos, Color(1.0, 0.5, 0.5))
+	_play_death_moan()
+
+func say_enemy_taunt(world_pos: Vector3):
+	if _taunt_cooldown > 0:
+		return
+	if randi() % 5 != 0:   # Only 1 in 5 shots — not too spammy
+		return
+	_taunt_cooldown = 4.0
+	var line = ENEMY_TAUNT_LINES[randi() % ENEMY_TAUNT_LINES.size()]
+	_show_bubble(line, world_pos, Color(1.0, 0.4, 0.4))
+	_play_battle_shout()
+
+func say_enemy_death(world_pos: Vector3):
+	var line = ENEMY_DEATH_TAUNTS[randi() % ENEMY_DEATH_TAUNTS.size()]
+	_show_bubble(line, world_pos, Color(0.9, 0.5, 0.5))
 	_play_death_moan()
 
 func say_grenade(world_pos: Vector3):

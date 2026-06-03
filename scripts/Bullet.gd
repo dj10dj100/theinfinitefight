@@ -48,6 +48,8 @@ func _on_body_entered(body):
 					Achievements.unlock("general")
 			# Killstreak!
 			Killstreak.add_kill(shot_by)
+			# Medal tracking!
+			Medals.track_kill()
 			# First kill ever = achievement
 			Achievements.unlock("first_blood")
 		queue_free()   # Bullet disappears on hit
