@@ -617,6 +617,7 @@ func _throw_grenade():
 	# Demolitions class: cooldown is halved!
 	grenade_cooldown = GRENADE_CD * (0.5 if special_ability == "demolitions" else 1.0)
 	SoundManager.play("click")
+	VoiceLines.say_grenade(global_position)
 	print("💣 GRENADE! Watch out!")
 
 	var grenade = load("res://scripts/Grenade.gd")
@@ -641,6 +642,7 @@ func _throw_grenade():
 func _call_airstrike():
 	airstrike_cooldown = AIRSTRIKE_CD
 	SoundManager.play("click")
+	VoiceLines.say_airstrike(global_position)
 	print("✈️ AIRSTRIKE INCOMING!")
 	Achievements.airstrike_count += 1
 	if Achievements.airstrike_count >= 5:

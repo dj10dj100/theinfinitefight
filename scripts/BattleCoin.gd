@@ -13,7 +13,7 @@ var _lifetime: float = 12.0   # Disappears after 12 seconds
 func _ready():
 	add_to_group("coins")
 
-	# Gold coin mesh
+	# Gold coin mesh (stored so we can fade it out later)
 	var mesh = MeshInstance3D.new()
 	mesh.mesh = CylinderMesh.new()
 	mesh.mesh.top_radius    = 0.18
@@ -42,10 +42,19 @@ func _ready():
 	body_entered.connect(_on_body_entered)
 
 	# Fade out and disappear after lifetime
+	# (3D nodes don't have modulate — we animate the material colour alpha instead)
 	await get_tree().create_timer(_lifetime - 2.0).timeout
-	var fade = get_tree().create_tween()
-	fade.tween_property(self, "modulate:a", 0.0, 2.0)
-	fade.tween_callback(queue_free)
+	if not is_instance_valid(self):
+		return
+	var coin_mat = mesh.get_surface_override_material(0) as StandardMaterial3D
+	if coin_mat:
+		coin_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		var fade = get_tree().create_tween()
+		fade.tween_method(func(a: float): coin_mat.albedo_color.a = a, 1.0, 0.0, 2.0)
+		fade.tween_callback(queue_free)
+	else:
+		await get_tree().create_timer(2.0).timeout
+		queue_free()
 
 func _on_body_entered(body):
 	if body.is_in_group("clones"):

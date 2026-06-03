@@ -55,6 +55,22 @@ const MAP_DATA = {
 		"decoration": "night_trees",
 		"name":       "🌙 Night"
 	},
+	"night_city": {
+		"ground":     Color(0.10, 0.10, 0.12),
+		"sky":        Color(0.04, 0.02, 0.08),
+		"light":      Color(0.10, 0.10, 0.25),
+		"fog":        Color(0.06, 0.04, 0.10),
+		"decoration": "city_night",
+		"name":       "🌆 Night City"
+	},
+	"volcano": {
+		"ground":     Color(0.18, 0.06, 0.02),
+		"sky":        Color(0.28, 0.08, 0.02),
+		"light":      Color(1.0,  0.50, 0.20),
+		"fog":        Color(0.35, 0.10, 0.02),
+		"decoration": "lava_rocks",
+		"name":       "🌋 Volcano"
+	},
 }
 
 # Apply the chosen theme to the battlefield
@@ -92,6 +108,15 @@ func apply(battlefield: Node3D):
 	# Night map: add campfires and a moon glow
 	if map == "night":
 		_spawn_night_lights(battlefield)
+
+	# Night City: neon streetlights everywhere
+	if map == "night_city":
+		light.light_energy = 0.06 if light else 0.06
+		_spawn_night_city_lights(battlefield)
+
+	# Volcano: red lava glow from below
+	if map == "volcano":
+		_spawn_lava_glow(battlefield)
 
 func _create_world_env(parent: Node3D) -> WorldEnvironment:
 	var we = WorldEnvironment.new()
@@ -134,6 +159,10 @@ func _spawn_decorations(parent: Node3D, style: String, ground_col: Color):
 				_spawn_snow_mound(parent, pos)
 			"night_trees":
 				_spawn_night_tree(parent, pos)
+			"city_night":
+				_spawn_night_city_block(parent, pos)
+			"lava_rocks":
+				_spawn_lava_rock(parent, pos)
 
 func _spawn_tree(parent: Node3D, pos: Vector3, jungle: bool):
 	var node = Node3D.new()
@@ -246,6 +275,111 @@ func _spawn_night_lights(battlefield: Node3D):
 	moon.light_energy   = 0.5
 	moon.omni_range     = 80.0
 	battlefield.add_child(moon)
+
+# -----------------------------------------------
+# NIGHT CITY MAP
+# -----------------------------------------------
+func _spawn_night_city_block(parent: Node3D, pos: Vector3):
+	# A dark concrete building block
+	var block = MeshInstance3D.new()
+	var bm = BoxMesh.new()
+	bm.size = Vector3(randf_range(2.0, 4.0), randf_range(3.0, 8.0), randf_range(2.0, 4.0))
+	block.mesh = bm
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(randf_range(0.08, 0.18), randf_range(0.08, 0.18), randf_range(0.10, 0.22))
+	mat.roughness = 0.85
+	block.set_surface_override_material(0, mat)
+	block.position = pos + Vector3(0, bm.size.y * 0.5, 0)
+	parent.add_child(block)
+
+	# Tiny glowing windows
+	for w in range(int(bm.size.y / 1.5)):
+		var win = MeshInstance3D.new()
+		var wm = BoxMesh.new()
+		wm.size = Vector3(0.35, 0.35, 0.05)
+		win.mesh = wm
+		var wmat = StandardMaterial3D.new()
+		wmat.albedo_color    = Color(1.0, 0.9, 0.5)
+		wmat.emission_enabled = true
+		wmat.emission        = Color(1.0, 0.8, 0.3) * 1.5
+		wmat.shading_mode    = BaseMaterial3D.SHADING_MODE_UNSHADED
+		win.set_surface_override_material(0, wmat)
+		win.position = pos + Vector3(bm.size.x * 0.5 + 0.03, 1.0 + w * 1.5, randf_range(-0.5, 0.5))
+		parent.add_child(win)
+
+func _spawn_night_city_lights(battlefield: Node3D):
+	# Purple/blue neon streetlights criss-crossing the battlefield
+	var light_positions = [
+		Vector3(-10, 0, -5), Vector3(10, 0, -5),
+		Vector3(-10, 0, 5),  Vector3(10, 0, 5),
+		Vector3(0, 0, -10),  Vector3(0, 0, 10),
+	]
+	for pos in light_positions:
+		# Tall thin lamppost
+		var post = MeshInstance3D.new()
+		var pm = CylinderMesh.new()
+		pm.top_radius = 0.06; pm.bottom_radius = 0.08; pm.height = 5.0
+		post.mesh = pm
+		var pmat = StandardMaterial3D.new()
+		pmat.albedo_color = Color(0.15, 0.15, 0.20)
+		post.set_surface_override_material(0, pmat)
+		post.position = pos + Vector3(0, 2.5, 0)
+		battlefield.add_child(post)
+		# Neon light at the top (alternates purple / cyan)
+		var neon = OmniLight3D.new()
+		neon.position     = pos + Vector3(0, 5.2, 0)
+		neon.light_color  = Color(0.5, 0.1, 1.0) if pos.x < 0 else Color(0.0, 0.8, 1.0)
+		neon.light_energy = 3.0
+		neon.omni_range   = 12.0
+		battlefield.add_child(neon)
+
+# -----------------------------------------------
+# VOLCANO MAP
+# -----------------------------------------------
+func _spawn_lava_rock(parent: Node3D, pos: Vector3):
+	# A jagged dark rock formation
+	for i in range(3):
+		var rock = MeshInstance3D.new()
+		var sm = SphereMesh.new()
+		sm.radius = randf_range(0.4, 1.1)
+		sm.height = randf_range(0.6, 1.8)
+		rock.mesh = sm
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color = Color(randf_range(0.10, 0.20), randf_range(0.03, 0.08), 0.02)
+		mat.roughness = 1.0
+		rock.set_surface_override_material(0, mat)
+		rock.position = pos + Vector3(randf_range(-1.0, 1.0), sm.height * 0.4, randf_range(-1.0, 1.0))
+		rock.rotation.y = randf_range(0, PI * 2)
+		parent.add_child(rock)
+	# Glowing lava crack at the base
+	var lava = MeshInstance3D.new()
+	var lm = BoxMesh.new()
+	lm.size = Vector3(randf_range(0.3, 1.0), 0.05, randf_range(0.3, 1.0))
+	lava.mesh = lm
+	var lmat = StandardMaterial3D.new()
+	lmat.albedo_color    = Color(1.0, 0.3, 0.0)
+	lmat.emission_enabled = true
+	lmat.emission        = Color(1.0, 0.2, 0.0) * 2.0
+	lmat.shading_mode    = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lava.set_surface_override_material(0, lmat)
+	lava.position = pos + Vector3(0, 0.03, 0)
+	parent.add_child(lava)
+
+func _spawn_lava_glow(battlefield: Node3D):
+	# Red glow from below — like lava under the ground
+	var glow = OmniLight3D.new()
+	glow.position     = Vector3(0, -2.0, 0)
+	glow.light_color  = Color(1.0, 0.3, 0.0)
+	glow.light_energy = 1.5
+	glow.omni_range   = 60.0
+	battlefield.add_child(glow)
+	# A second glow at the edge for drama
+	var glow2 = OmniLight3D.new()
+	glow2.position     = Vector3(0, 1.0, -20.0)
+	glow2.light_color  = Color(1.0, 0.15, 0.0)
+	glow2.light_energy = 3.0
+	glow2.omni_range   = 40.0
+	battlefield.add_child(glow2)
 
 func _spawn_campfire(parent: Node3D, pos: Vector3):
 	# Glowing fire mesh (orange sphere)

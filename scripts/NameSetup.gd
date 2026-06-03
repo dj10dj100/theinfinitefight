@@ -54,13 +54,21 @@ func build_ui():
 	# Name input box
 	var name_input = LineEdit.new()
 	name_input.name = "NameInput"
-	name_input.placeholder_text = "Enter your name..."
+	name_input.placeholder_text = "Tap here to type your name..."
 	name_input.max_length = 10
 	name_input.set_anchor(SIDE_LEFT,  0.25); name_input.set_anchor(SIDE_RIGHT, 0.75)
 	name_input.set_anchor(SIDE_TOP,   0);    name_input.set_anchor(SIDE_BOTTOM, 0)
 	name_input.offset_top = 175;             name_input.offset_bottom = 215
 	name_input.add_theme_font_size_override("font_size", 22)
 	name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# On mobile, show the on-screen keyboard when this box is tapped
+	name_input.virtual_keyboard_enabled = true
+	name_input.focus_entered.connect(func():
+		DisplayServer.virtual_keyboard_show(name_input.text)
+	)
+	name_input.focus_exited.connect(func():
+		DisplayServer.virtual_keyboard_hide()
+	)
 	add_child(name_input)
 
 	var char_hint = Label.new()

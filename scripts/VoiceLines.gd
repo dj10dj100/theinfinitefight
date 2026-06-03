@@ -16,6 +16,16 @@ const SHOOT_LINES = [
 	"I've got you now!",
 	"Locked on target!",
 	"Stay back!",
+	"FOR ARNOLD!",
+	"You can't stop us!",
+	"Taste my bullets!",
+	"I am UNSTOPPABLE!",
+	"My trigger finger is ready!",
+	"Pew pew pew!",
+	"Duck, sucker!",
+	"I've been training for THIS!",
+	"Nobody beats us!",
+	"I skipped lunch for this!",
 ]
 
 const HIT_LINES = [
@@ -25,6 +35,12 @@ const HIT_LINES = [
 	"Keep going!",
 	"Argh!",
 	"Hold the line!",
+	"Is that the best you've got?!",
+	"RUDE!",
+	"My leg! Wait... I don't have legs.",
+	"Ouch! Who threw that?!",
+	"I'm fine! Totally fine!",
+	"That'll leave a mark.",
 ]
 
 const DEATH_LINES = [
@@ -34,6 +50,12 @@ const DEATH_LINES = [
 	"It was an honour!",
 	"Avenge meeee!",
 	"I regret nothing!",
+	"Arnold... I'm sorry...",
+	"Tell my family... I was plastic.",
+	"Was it something I said?!",
+	"Worth it. Totally worth it.",
+	"Goodbye, cruel battlefield!",
+	"I should've stayed in the box.",
 ]
 
 const VICTORY_LINES = [
@@ -41,6 +63,25 @@ const VICTORY_LINES = [
 	"We did it!",
 	"FOR THE COMMANDER!",
 	"Plastic and proud!",
+	"ARNOLD WINS AGAIN!",
+	"Nobody can stop us!",
+	"That was too easy!",
+	"Let's do that again!",
+]
+
+# New: lines when throwing special weapons
+const GRENADE_LINES = [
+	"Catch! 💣",
+	"GRENADE OUT!",
+	"Don't say I never gave you anything!",
+	"Boom present incoming!",
+]
+
+const AIRSTRIKE_LINES = [
+	"Air support — GO GO GO!",
+	"Rain fire from above!",
+	"Sorry, can't hear you over the BOMBS!",
+	"They'll never see it coming!",
 ]
 
 # Only say something every so often — otherwise it gets too noisy!
@@ -77,6 +118,16 @@ func say_death(world_pos: Vector3):
 	var line = DEATH_LINES[randi() % DEATH_LINES.size()]
 	_show_bubble(line, world_pos, Color(1.0, 0.5, 0.5))
 	_play_death_moan()
+
+func say_grenade(world_pos: Vector3):
+	var line = GRENADE_LINES[randi() % GRENADE_LINES.size()]
+	_show_bubble(line, world_pos, Color(1.0, 0.75, 0.2))
+	_play_battle_shout()
+
+func say_airstrike(world_pos: Vector3):
+	var line = AIRSTRIKE_LINES[randi() % AIRSTRIKE_LINES.size()]
+	_show_bubble(line, world_pos, Color(0.5, 0.8, 1.0))
+	_play_battle_shout()
 
 func say_victory():
 	var line = VICTORY_LINES[randi() % VICTORY_LINES.size()]

@@ -106,6 +106,42 @@ ArmyGame/ArmyGame/
 
 ---
 
+## New Enemy Types (Phase 16)
+
+Set via `enemy_type` export on Enemy.gd. Enemies randomly get a type in `_ready()`:
+
+| Type | Colour | Health | Speed | Special |
+|---|---|---|---|---|
+| `normal` | Tan | 200 | 3.0 | Smart AI (advance/cover/flank) |
+| `ninja` | Dark purple | 80 | 6.5 | Randomly dodges sideways |
+| `heavy` | Steel grey | 450 + 200 shield | 1.8 | Shield absorbs first 200 damage |
+| `kamikaze` | Orange-red | 60 | 7.5 | No gun — sprints in and EXPLODES (120 damage AoE) |
+
+Spawn weights: 60% normal, 20% ninja, 12% heavy, 8% kamikaze.
+
+## New Maps (Phase 16)
+
+Added `night_city` and `volcano` to MapTheme.MAP_DATA. All 7 maps: grassland, jungle, city, snow, night, night_city, volcano.
+
+## Boss Battles — 3 Phases (Phase 16)
+
+BossEnemy.gd now has 3 phases:
+- **Phase 1** (100–60%): dark red, steady advance, 3-bullet spread
+- **Phase 2** (60–30%): bright red, charge attack every 5s, faster
+- **Phase 3** (30–0%): purple rage, 5-bullet spread, summons minions every 8s, double speed
+
+Health bar colour: green → yellow → purple in rage.
+
+## Daily Challenges (Phase 16)
+
+`DailyChallenge.gd` is an AutoLoad. Challenge rotates daily based on today's date (same for everyone on that day). 14 total challenges. Call:
+- `DailyChallenge.get_today()` — get today's challenge dict
+- `DailyChallenge.is_done_today()` — check if completed
+- `DailyChallenge.complete()` — mark done and show reward banner
+- `DailyChallenge.show_challenge_popup()` — show on-screen card
+
+---
+
 ## Touch Controls (Mobile)
 
 `TouchControls.gd` is an AutoLoad CanvasLayer. It only shows on touchscreen devices (phones/tablets). It exposes:
@@ -335,6 +371,8 @@ Extra runtime data uses `GameManager.set_meta() / get_meta() / has_meta()` for t
 | — | Full weapon system: ammo, reload, 8 weapons with Daniel's exact stats |
 | 15 | 4 new weapons (Flamethrower, Rocket Launcher, Lightning Gun, Grenade Launcher) + flyable Helicopter |
 | 16 | Touch controls for mobile — virtual joystick, fire button, ability buttons, helicopter button |
+| 16b | Phase 16 MEGA update: new enemy types (ninja/heavy/kamikaze), new maps (Night City, Volcano), funny clone dialogue, 3-phase boss battles, daily challenges |
+| — | Bug fixes: modulate:a on 3D nodes (Airstrike, BattleCoin, Particles), look_at before tree insert (Particles bullet_trail) |
 
 ---
 

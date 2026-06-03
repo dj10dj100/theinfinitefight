@@ -31,6 +31,7 @@ Achievements="*res://scripts/Achievements.gd"
 Killstreak="*res://scripts/Killstreak.gd"
 SecretCodes="*res://scripts/SecretCodes.gd"
 TouchControls="*res://scripts/TouchControls.gd"
+DailyChallenge="*res://scripts/DailyChallenge.gd"
 
 [display]
 

@@ -49,10 +49,10 @@ func muzzle_flash(pos: Vector3, dir: Vector3):
 		spark.position = spark_dir * randf_range(0.05, 0.22)
 		node.add_child(spark)
 
-		# Animate each spark flying outward and fading
+		# Animate each spark flying outward and shrinking to nothing
 		var tween = get_tree().create_tween()
 		tween.tween_property(spark, "position", spark.position + spark_dir * 0.5, 0.12)
-		tween.parallel().tween_property(spark, "modulate:a", 0.0, 0.12)
+		tween.parallel().tween_property(spark, "scale", Vector3(0.01, 0.01, 0.01), 0.12)
 
 	# Fade out the whole flash quickly
 	var tween = get_tree().create_tween()
@@ -81,7 +81,7 @@ func hit_sparks(pos: Vector3):
 		var dir = Vector3(randf_range(-1,1), randf_range(0.2,1), randf_range(-1,1)).normalized()
 		var tween = get_tree().create_tween()
 		tween.tween_property(spark, "position", dir * randf_range(0.3, 0.8), 0.25)
-		tween.parallel().tween_property(spark, "modulate:a", 0.0, 0.25)
+		tween.parallel().tween_property(spark, "scale", Vector3(0.01, 0.01, 0.01), 0.25)
 
 	var cleanup = get_tree().create_tween()
 	cleanup.tween_interval(0.3)
@@ -123,13 +123,13 @@ func death_explosion(pos: Vector3, colour: Color):
 		var dist = randf_range(0.5, 1.6)
 		var tween = get_tree().create_tween()
 		tween.tween_property(chunk, "position", dir * dist, 0.4)
-		tween.parallel().tween_property(chunk, "modulate:a", 0.0, 0.4)
+		tween.parallel().tween_property(chunk, "scale", Vector3(0.01, 0.01, 0.01), 0.4)
 		tween.parallel().tween_property(chunk, "rotation", Vector3(randf_range(0,6), randf_range(0,6), randf_range(0,6)), 0.4)
 
-	# Expand and fade the flash
+	# Expand and shrink the flash
 	var tween = get_tree().create_tween()
 	tween.tween_property(flash, "scale", Vector3(3.0, 3.0, 3.0), 0.25)
-	tween.parallel().tween_property(flash, "modulate:a", 0.0, 0.25)
+	tween.parallel().tween_property(flash, "scale", Vector3(0.01, 0.01, 0.01), 0.25)
 	tween.tween_callback(node.queue_free)
 
 # A glowing trail left behind by a bullet
@@ -148,12 +148,12 @@ func bullet_trail(start: Vector3, end: Vector3):
 	node.set_surface_override_material(0, mat)
 
 	# Position and orient between start and end
+	# Add to tree FIRST, then look_at (node must be in the tree to use look_at)
 	node.position = (start + end) * 0.5
-	node.look_at(end, Vector3.UP)
-
 	get_tree().root.add_child(node)
+	node.look_at_from_position(node.global_position, end, Vector3.UP)
 
-	# Fade out quickly
+	# Shrink to nothing quickly (modulate:a doesn't work on 3D nodes)
 	var tween = get_tree().create_tween()
-	tween.tween_property(node, "modulate:a", 0.0, 0.08)
+	tween.tween_property(node, "scale", Vector3(0.01, 0.01, 0.01), 0.08)
 	tween.tween_callback(node.queue_free)

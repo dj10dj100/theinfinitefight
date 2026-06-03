@@ -12,16 +12,33 @@ extends CharacterBody3D
 @export var health: float = 200.0
 @export var shoot_range: float = 12.0
 
+# ENEMY TYPE — set this to change the enemy's look and behaviour!
+# "normal"   — the classic Rogue soldier (default)
+# "ninja"    — fast, sneaky, low health, dodges bullets
+# "heavy"    — huge health, slow, has a shield, hits hard
+# "kamikaze" — sprints full speed at clones and EXPLODES on contact!
+@export var enemy_type: String = "normal"
+
 var bullet_scene = preload("res://scenes/Bullet.tscn")
 
 var shoot_timer: float = 0.0
 var target_clone = null
 var gravity = ProjectSettings.get_setting("physics/3d/default_gravity")
 
-# Plastic colour — dark muddy tan for the Rogue army
-const ENEMY_COLOUR = Color(0.42, 0.30, 0.16)
+# Plastic colour — changes per enemy type!
+const ENEMY_COLOUR    = Color(0.42, 0.30, 0.16)   # Normal — muddy tan
+const NINJA_COLOUR    = Color(0.12, 0.08, 0.20)   # Ninja — dark purple
+const HEAVY_COLOUR    = Color(0.25, 0.25, 0.30)   # Heavy — dark steel grey
+const KAMIKAZE_COLOUR = Color(0.75, 0.20, 0.05)   # Kamikaze — bright orange-red
 
 var body_parts: Array = []
+
+# Heavy: shield points before health is touched
+var shield_hp: float = 0.0
+
+# Kamikaze: explodes when it reaches a clone
+const KAMIKAZE_EXPLODE_RANGE = 1.4
+const KAMIKAZE_DAMAGE        = 120.0
 
 # -----------------------------------------------
 # SMART AI VARIABLES
@@ -37,14 +54,63 @@ var _flank_dir: float   = 1.0           # +1 or -1 for flank direction
 func _ready():
 	add_to_group("enemies")
 
-	# Hide the plain capsule and build a Rogue army man!
+	# Randomly assign a type (normal enemies on the battlefield get variety!)
+	# 60% normal, 20% ninja, 12% heavy, 8% kamikaze
+	if enemy_type == "normal":
+		var roll = randf()
+		if roll < 0.08:
+			enemy_type = "kamikaze"
+		elif roll < 0.20:
+			enemy_type = "heavy"
+		elif roll < 0.40:
+			enemy_type = "ninja"
+
+	# Apply type-specific stats
+	match enemy_type:
+		"ninja":
+			move_speed  = 6.5
+			health      = 80.0
+			shoot_range = 9.0
+		"heavy":
+			move_speed  = 1.8
+			health      = 450.0
+			shield_hp   = 200.0
+			shoot_range = 14.0
+		"kamikaze":
+			move_speed  = 7.5
+			health      = 60.0
+			shoot_range = 0.0   # Never shoots — just charges!
+
+	# Build the right colour body for this type
+	var colour = _get_type_colour()
 	mesh_instance.visible = false
-	body_parts = ArmyManBuilder.build(self, ENEMY_COLOUR)
+	body_parts = ArmyManBuilder.build(self, colour)
+
+	# Heavy: glowing shield effect (gold outline)
+	if enemy_type == "heavy" and shield_hp > 0:
+		_apply_shield_glow()
 
 	# Randomise the starting flank direction so not all enemies go the same way
 	_flank_dir = 1.0 if randf() > 0.5 else -1.0
 	# Stagger AI so enemies don't all act in sync
 	_ai_timer = randf_range(0.0, 2.0)
+
+func _get_type_colour() -> Color:
+	match enemy_type:
+		"ninja":    return NINJA_COLOUR
+		"heavy":    return HEAVY_COLOUR
+		"kamikaze": return KAMIKAZE_COLOUR
+	return ENEMY_COLOUR
+
+func _apply_shield_glow():
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color    = HEAVY_COLOUR
+	mat.emission_enabled = true
+	mat.emission        = Color(0.8, 0.7, 0.0) * 0.6
+	mat.roughness       = 0.1
+	for part in body_parts:
+		if is_instance_valid(part):
+			part.set_surface_override_material(0, mat)
 
 func _physics_process(delta):
 	if not is_on_floor():
@@ -57,7 +123,15 @@ func _physics_process(delta):
 		target_clone = find_nearest_clone()
 
 	if target_clone != null:
-		_run_smart_ai(delta)
+		# Kamikaze just sprints straight in and blows up!
+		if enemy_type == "kamikaze":
+			_run_kamikaze_ai()
+		else:
+			_run_smart_ai(delta)
+			# Ninja: randomly sidestep to dodge bullets
+			if enemy_type == "ninja" and randf() < 0.02:
+				var side = Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)).normalized()
+				velocity += side * move_speed * 0.8
 
 	move_and_slide()
 
@@ -146,6 +220,29 @@ func _pick_new_state(dist: float):
 		ai_state = "shoot"
 		_ai_timer = randf_range(1.0, 2.5)
 
+func _run_kamikaze_ai():
+	var dist = global_position.distance_to(target_clone.global_position)
+	# Sprint straight at the clone!
+	var dir = (target_clone.global_position - global_position).normalized()
+	velocity.x = dir.x * move_speed
+	velocity.z = dir.z * move_speed
+	_face_target()
+	# Close enough? BOOM!
+	if dist <= KAMIKAZE_EXPLODE_RANGE:
+		_kamikaze_explode()
+
+func _kamikaze_explode():
+	print("💥 KAMIKAZE! He ran right into them!")
+	Particles.death_explosion(global_position + Vector3(0, 0.5, 0), KAMIKAZE_COLOUR)
+	SoundManager.play("death")
+	# Damage all clones in range
+	for clone in get_tree().get_nodes_in_group("clones"):
+		if is_instance_valid(clone):
+			if global_position.distance_to(clone.global_position) <= 3.5:
+				clone.take_damage(KAMIKAZE_DAMAGE)
+	get_parent().on_enemy_died(self)
+	queue_free()
+
 func _face_target():
 	if target_clone == null or not is_instance_valid(target_clone):
 		return
@@ -185,16 +282,33 @@ func find_nearest_clone() -> Node:
 # TAKING DAMAGE
 # -----------------------------------------------
 func take_damage(amount: float):
+	# Heavy enemy: shield absorbs damage first!
+	if enemy_type == "heavy" and shield_hp > 0:
+		shield_hp -= amount
+		SoundManager.play("click")
+		print("🛡 Heavy's shield blocked it! Shield left: ", max(shield_hp, 0))
+		if shield_hp <= 0:
+			# Shield just broke — restore normal look
+			shield_hp = 0.0
+			var normal_mat = StandardMaterial3D.new()
+			normal_mat.albedo_color = HEAVY_COLOUR
+			normal_mat.roughness    = 0.35
+			for part in body_parts:
+				if is_instance_valid(part):
+					part.set_surface_override_material(0, normal_mat)
+			print("💥 Heavy's shield is GONE!")
+		return
+
 	health -= amount
 	SoundManager.play("hit")
 	print("Enemy hit! Health left: ", health)
 
-	# Flash all parts white, then restore the tan colour
+	var colour = _get_type_colour()
 	var white_mat = StandardMaterial3D.new()
 	white_mat.albedo_color = Color(1, 1, 1)
 	white_mat.roughness = 0.28
 	var normal_mat = StandardMaterial3D.new()
-	normal_mat.albedo_color = ENEMY_COLOUR
+	normal_mat.albedo_color = colour
 	normal_mat.roughness = 0.28
 
 	for part in body_parts:

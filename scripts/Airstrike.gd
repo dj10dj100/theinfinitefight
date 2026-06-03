@@ -34,10 +34,18 @@ func _spawn_warning_circle():
 	ring.position.y = 0.05   # Just above the ground
 	get_tree().root.add_child(ring)
 
-	# Flash it on and off, then remove when the bomb lands
+	# Flash it on and off (5 flashes over 1.5 seconds), then remove it
 	var tween = get_tree().create_tween()
-	tween.tween_property(ring, "modulate:a", 0.1, 0.3).set_loops(5)
-	tween.tween_callback(ring.queue_free)
+	tween.set_loops(5)
+	tween.tween_callback(func(): ring.visible = false)
+	tween.tween_interval(0.15)
+	tween.tween_callback(func(): ring.visible = true)
+	tween.tween_interval(0.15)
+	# Free the ring after the flashing is done (5 × 0.3s = 1.5s)
+	get_tree().create_timer(1.5).timeout.connect(func():
+		if is_instance_valid(ring):
+			ring.queue_free()
+	)
 
 func _drop_bomb():
 	# The bomb itself — starts high above the target
