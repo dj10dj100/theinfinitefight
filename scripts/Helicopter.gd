@@ -183,15 +183,17 @@ func _try_enter_helicopter():
 func _enter_helicopter(clone):
 	pilot_clone     = clone
 	is_player_in    = true
-	clone.is_player_controlled = false   # Clone goes on autopilot
-	clone.visible   = false              # Hide the clone (they're inside!)
+	clone.is_player_controlled = false
+	clone.visible   = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	# Attach camera behind and above the helicopter
+	get_tree().call_group("battlefield", "enter_vehicle_view", self, Vector3(0, 4.0, 7.0))
 	print("🚁 You jumped in the helicopter! WASD to fly, SPACE=up, SHIFT=down, E=exit")
 
 func _exit_helicopter():
 	is_player_in = false
+	get_tree().call_group("battlefield", "exit_vehicle_view")
 	if pilot_clone and is_instance_valid(pilot_clone):
-		# Drop the pilot out next to the helicopter
 		pilot_clone.global_position = global_position + Vector3(2.5, 0, 0)
 		pilot_clone.visible         = true
 		pilot_clone.is_player_controlled = true

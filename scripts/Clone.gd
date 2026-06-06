@@ -29,6 +29,12 @@ var bullet_scene = preload("res://scenes/Bullet.tscn")
 var is_player_controlled: bool = false
 var is_player2_controlled: bool = false
 var shoot_timer: float = 0.0
+
+# Raygun laser state
+var _laser_time:     float = 0.0   # How long the laser has been firing (max 10s)
+var _laser_cooldown: float = 0.0   # Recharge time after running out
+var _laser_beam:     MeshInstance3D = null
+var _laser_light:    OmniLight3D   = null
 var target_enemy = null
 var mouse_sensitivity: float = 0.003
 var gravity = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -111,10 +117,13 @@ func _physics_process(delta):
 	airstrike_cooldown = max(airstrike_cooldown - delta, 0.0)
 	landmine_cooldown  = max(landmine_cooldown  - delta, 0.0)
 
-	# Touch fire button — shoot while held
+	# Hold mouse OR touch fire button to spray
 	if is_player_controlled:
 		var touch = get_node_or_null("/root/TouchControls")
-		if touch and touch.fire_pressed and shoot_timer <= 0:
+		var firing = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or (touch and touch.fire_pressed)
+		if active_weapon == "arnies_raygun":
+			_handle_laser(firing, delta)
+		elif firing and shoot_timer <= 0:
 			shoot()
 
 	if is_player_controlled:
@@ -136,11 +145,7 @@ func _input(event):
 		# Rotate left/right with the mouse
 		rotate_y(-event.relative.x * mouse_sensitivity)
 
-	# Left-click to shoot in first-person
-	if is_player_controlled and event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			if shoot_timer <= 0:
-				shoot()
+	# (Shooting is now handled in _process so holding fires continuously)
 
 	# Press R to swap weapons — sniper clones only!
 	if is_player_controlled and event is InputEventKey:
@@ -350,18 +355,18 @@ func _start_reload():
 # How many bullets in a full magazine?
 func get_max_ammo(w: String) -> int:
 	match w:
-		"pistol":        return 15
-		"revolver":      return 6
-		"shotgun":       return 5
-		"assault_rifle": return 30
-		"sniper":        return 1
-		"smg":           return 70
-		"arnies_raygun": return 1000000000   # Basically infinite!
-		"minigun":           return 1000
-		"flamethrower":      return 100
-		"rocket_launcher":   return 4
-		"lightning_gun":     return 20
-		"grenade_launcher":  return 6
+		"pistol":           return 17    # Glock 17 — 17 rounds
+		"revolver":         return 6     # Classic 6-shooter
+		"shotgun":          return 8     # Pump-action — 8 shells
+		"assault_rifle":    return 30    # M4/AK mag — 30 rounds
+		"sniper":           return 5     # Bolt-action — 5 round mag
+		"smg":              return 32    # MP5 — 32 rounds
+		"arnies_raygun":    return 1000000000   # Basically infinite!
+		"minigun":          return 200   # Belt-fed — 200 rounds
+		"flamethrower":     return 60    # Fuel tank — 60 bursts
+		"rocket_launcher":  return 1     # RPG — 1 rocket, then reload
+		"lightning_gun":    return 20    # Sci-fi battery — 20 shots
+		"grenade_launcher": return 6     # M203 — 6 grenades
 	return 15
 
 # How long does it take to reload each weapon?
@@ -723,3 +728,90 @@ func release_player_control():
 	is_player_controlled = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)   # Show mouse again
 	get_tree().call_group("battlefield", "exit_first_person")
+	_deactivate_laser()
+
+# -----------------------------------------------
+# RAYGUN LASER — 10 second continuous beam!
+# -----------------------------------------------
+func _handle_laser(firing: bool, delta: float):
+	# Tick down cooldown (recharging after 10s use)
+	if _laser_cooldown > 0.0:
+		_laser_cooldown -= delta
+		_deactivate_laser()
+		# Show recharge message once
+		return
+
+	if firing and _laser_time < 10.0:
+		_laser_time += delta
+		_activate_laser(delta)
+		# Update ammo display to show seconds remaining
+		ammo = int(10.0 - _laser_time)
+	else:
+		if _laser_time >= 10.0:
+			_laser_cooldown = 5.0   # 5 seconds to recharge
+			_laser_time     = 0.0
+			SoundManager.play("hit")
+			print("🔴 Raygun overheated! Recharging for 5 seconds...")
+		elif not firing:
+			# Not holding — slowly recharge while idle
+			_laser_time = max(_laser_time - delta * 0.5, 0.0)
+		_deactivate_laser()
+		ammo = int(10.0 - _laser_time)
+
+func _activate_laser(delta: float):
+	const BEAM_LENGTH = 22.0
+
+	# Build the beam mesh if it doesn't exist yet
+	if _laser_beam == null:
+		_laser_beam = MeshInstance3D.new()
+		var bm = BoxMesh.new()
+		bm.size = Vector3(0.06, 0.06, BEAM_LENGTH)
+		_laser_beam.mesh = bm
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color     = Color(1.0, 0.1, 0.8)
+		mat.emission_enabled = true
+		mat.emission         = Color(1.0, 0.0, 0.6) * 4.0
+		mat.shading_mode     = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_laser_beam.set_surface_override_material(0, mat)
+		# Offset to sit at chest height, pointing forward
+		_laser_beam.position = Vector3(0, 1.0, -BEAM_LENGTH * 0.5)
+		add_child(_laser_beam)
+
+		_laser_light = OmniLight3D.new()
+		_laser_light.light_color  = Color(1.0, 0.1, 0.8)
+		_laser_light.light_energy = 4.0
+		_laser_light.omni_range   = 5.0
+		_laser_light.position     = Vector3(0, 1.0, -3.0)
+		add_child(_laser_light)
+
+	# Pulse the glow
+	if _laser_light:
+		_laser_light.light_energy = 3.0 + sin(Time.get_ticks_msec() * 0.02) * 1.5
+
+	# Damage enemies caught in the beam
+	var beam_origin = global_position + Vector3(0, 1.0, 0)
+	var beam_dir    = -global_transform.basis.z.normalized()
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy):
+			continue
+		var to_enemy = enemy.global_position - beam_origin
+		var dist     = to_enemy.length()
+		if dist > BEAM_LENGTH:
+			continue
+		# Check how close the enemy is to the laser centre line
+		var along = to_enemy.dot(beam_dir)
+		if along < 0:
+			continue
+		var closest = beam_origin + beam_dir * along
+		var off = (enemy.global_position - closest).length()
+		if off < 1.2:   # Within 1.2m of beam centre — gets fried!
+			enemy.take_damage(40.0 * delta)   # 40 damage per second
+			Particles.blood_splat(enemy.global_position + Vector3(0, 0.8, 0))
+
+func _deactivate_laser():
+	if _laser_beam:
+		_laser_beam.queue_free()
+		_laser_beam = null
+	if _laser_light:
+		_laser_light.queue_free()
+		_laser_light = null

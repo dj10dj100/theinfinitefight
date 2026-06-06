@@ -180,11 +180,15 @@ func _on_ran_over(body):
 
 func enter_jeep():
 	is_player_driven = true
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	# Attach camera behind and above the jeep
+	get_tree().call_group("battlefield", "enter_vehicle_view", self, Vector3(0, 3.5, 6.0))
 	print("🚗 You're driving the jeep! WASD = drive, click = fire cannon, ESC = get out")
 
 func exit_jeep():
 	is_player_driven = false
+	get_tree().call_group("battlefield", "exit_vehicle_view")
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	print("Got out of the jeep.")
 
 func take_damage(amount: float):

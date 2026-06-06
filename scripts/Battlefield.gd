@@ -264,6 +264,24 @@ func exit_first_person():
 	# Hide the HUD
 	if hud:
 		hud.hide_hud()
+
+# -----------------------------------------------
+# VEHICLE CAMERA — attach camera to a vehicle
+# -----------------------------------------------
+func enter_vehicle_view(vehicle, cam_offset: Vector3):
+	first_person_camera.reparent(vehicle)
+	first_person_camera.position         = cam_offset
+	# Use LOCAL rotation so camera always faces the same way as the vehicle
+	first_person_camera.rotation_degrees = Vector3(-15, 0, 0)
+	first_person_camera.current = true
+	top_down_camera.current     = false
+	if hud:
+		hud.hide_hud()
+
+func exit_vehicle_view():
+	first_person_camera.reparent(self)
+	first_person_camera.current = false
+	top_down_camera.current     = true
 	print("Back to top-down view. Click a clone to control it!")
 
 # -----------------------------------------------

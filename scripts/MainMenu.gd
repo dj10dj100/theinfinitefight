@@ -499,6 +499,16 @@ func _open_codes_panel():
 	submit_btn.pressed.connect(_submit)
 	line_edit.text_submitted.connect(func(_t): _submit.call())
 
+	# Turn off cheats button
+	var off_btn = Button.new()
+	off_btn.text = "🚫  Turn Off All Cheats"
+	off_btn.add_theme_font_size_override("font_size", 14)
+	off_btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
+	off_btn.pressed.connect(func():
+		SecretCodes.disable_all_cheats()
+	)
+	vbox.add_child(off_btn)
+
 	# Close button
 	var close_btn = Button.new()
 	close_btn.text = "✖  Close"

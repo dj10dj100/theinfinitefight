@@ -174,3 +174,9 @@ func is_bighead() -> bool:
 
 func has_cheat(key: String) -> bool:
 	return key in unlocked_cheats
+
+func disable_all_cheats():
+	unlocked_cheats.clear()
+	_save()
+	SoundManager.play("click")
+	_show_banner("🚫 All cheats turned OFF!")
