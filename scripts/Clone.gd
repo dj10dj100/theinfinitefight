@@ -534,6 +534,7 @@ func take_damage(amount: float):
 	health -= amount
 	SoundManager.play("hit")
 	VoiceLines.say_hit(global_position)
+	Particles.blood_splat(global_position + Vector3(0, 0.8, 0))
 	print("Clone hit! Health left: ", health)
 
 	# Flash all parts white, then restore the olive green
@@ -559,9 +560,20 @@ func die():
 	print("A clone has fallen!")
 	SoundManager.play("death")
 	VoiceLines.say_death(global_position)
-	Particles.death_explosion(global_position + Vector3(0, 0.8, 0), CLONE_COLOUR)
+	Particles.blood_splat(global_position + Vector3(0, 0.8, 0))
 	get_parent().on_clone_died(self)
-	queue_free()
+
+	# Stop the clone from moving or shooting any more
+	is_player_controlled = false
+	set_physics_process(false)
+	set_process(false)
+
+	# Tip over and fall to the ground like a knocked-over toy soldier
+	var fall = get_tree().create_tween()
+	fall.tween_property(self, "rotation_degrees:x", 90.0, 0.4).set_ease(Tween.EASE_IN)
+	fall.parallel().tween_property(self, "position:y", position.y - 0.3, 0.4)
+	fall.tween_interval(1.2)
+	fall.tween_callback(queue_free)
 
 # -----------------------------------------------
 # NEW WEAPON SPECIAL FIRE MODES

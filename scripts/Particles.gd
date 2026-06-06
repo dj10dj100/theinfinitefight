@@ -87,6 +87,36 @@ func hit_sparks(pos: Vector3):
 	cleanup.tween_interval(0.3)
 	cleanup.tween_callback(node.queue_free)
 
+# Blood splat — red droplets fly out when a clone takes a hit
+func blood_splat(pos: Vector3):
+	var node = Node3D.new()
+	node.position = pos
+	get_tree().root.add_child(node)
+
+	for i in range(10):
+		var drop = MeshInstance3D.new()
+		var sm = SphereMesh.new()
+		sm.radius = randf_range(0.03, 0.09)
+		sm.height = sm.radius * 2.0
+		drop.mesh = sm
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color    = Color(randf_range(0.6, 1.0), 0.0, 0.0)
+		mat.emission_enabled = true
+		mat.emission        = Color(0.5, 0.0, 0.0)
+		mat.roughness       = 0.9
+		drop.set_surface_override_material(0, mat)
+		node.add_child(drop)
+
+		var dir = Vector3(randf_range(-1, 1), randf_range(0.2, 1.2), randf_range(-1, 1)).normalized()
+		var dist = randf_range(0.15, 0.55)
+		var tw = get_tree().create_tween()
+		tw.tween_property(drop, "position", dir * dist, 0.25)
+		tw.parallel().tween_property(drop, "scale", Vector3(0.1, 0.1, 0.1), 0.25)
+
+	var cleanup = get_tree().create_tween()
+	cleanup.tween_interval(0.3)
+	cleanup.tween_callback(node.queue_free)
+
 # Death explosion — bigger burst of colour matching the dead soldier
 func death_explosion(pos: Vector3, colour: Color):
 	var node = Node3D.new()

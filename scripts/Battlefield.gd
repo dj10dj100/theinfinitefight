@@ -245,14 +245,16 @@ func check_if_clone_clicked(screen_pos: Vector2):
 # -----------------------------------------------
 func enter_first_person(clone):
 	first_person_camera.reparent(clone)
-	first_person_camera.position = Vector3(0, 1.6, 0)
-	first_person_camera.rotation = Vector3.ZERO
+	# 3rd-person: float behind and above the clone, look over their shoulder
+	first_person_camera.position = Vector3(0, 2.5, 3.5)
+	var look_target = clone.global_position + (-clone.transform.basis.z * 5.0) + Vector3(0, 1.0, 0)
+	first_person_camera.look_at(look_target, Vector3.UP)
 	first_person_camera.current  = true
 	top_down_camera.current      = false
 	# Show the HUD!
 	if hud:
 		hud.show_hud(clone)
-	print("First-person mode! WASD to move, mouse to look, click to shoot. ESC to go back.")
+	print("3rd-person mode! WASD to move, mouse to look, click to shoot. ESC to go back.")
 
 func exit_first_person():
 	first_person_camera.reparent(self)
