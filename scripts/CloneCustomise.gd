@@ -63,6 +63,11 @@ const ABILITIES = [
 		"name": "🔧  Engineer",
 		"desc": "Shoots twice as fast!\nBattlefield repairs over time."
 	},
+	{
+		"key":  "spy",
+		"name": "🕵️  Spy",
+		"desc": "Press Q to go invisible!\nEnemies can't see or shoot you."
+	},
 ]
 
 var colour_buttons: Array   = []

@@ -15,6 +15,12 @@ var game_manager = null
 var battle_over: bool = false
 var hud: CanvasLayer = null
 
+# Battle Report stats
+var _battle_start_time: float = 0.0
+var _total_kills: int = 0
+var _total_damage_dealt: float = 0.0
+var _dog_tags_collected: int = 0
+
 # Battle coins — collected by walking over dropped coins
 var battle_coins: int = 0
 var _coin_label = null
@@ -122,6 +128,7 @@ func _ready():
 	Killstreak.reset()
 	# Start medal tracking!
 	Medals.battle_start()
+	_battle_start_time = Time.get_ticks_msec() / 1000.0
 	# Start sky drop timer — a power-up crate falls every 25 seconds!
 	_start_sky_drop_timer()
 	Achievements.coins_spent_battle = 0
@@ -130,6 +137,13 @@ func _ready():
 	_build_coin_hud()
 
 	print("Battle started! Your clones: ", clones_on_field.size(), "  Enemies: ", enemies_on_field.size())
+
+	# Capture the Flag mode!
+	if GameManager and GameManager.ctf_mode:
+		var ctf = Node3D.new()
+		ctf.set_script(load("res://scripts/CaptureFlag.gd"))
+		add_child(ctf)
+		print("🚩 CTF mode active!")
 
 	# Instant win cheat!
 	if SecretCodes and SecretCodes.has_cheat("instant_win"):
@@ -151,17 +165,25 @@ func spawn_clones_from_deploy(deploy_data: Array):
 					clone.secondary_weapon = w
 					break
 
-		clone.position = entry["position"]
+		# Spawn high in the sky for the parachute drop!
+		clone.position = Vector3(entry["position"].x, 22.0, entry["position"].z)
 		add_child(clone)
 		clones_on_field.append(clone)
 
 	# Apply upgrade bonuses and backpacks to every spawned clone
+	# First clone is always the Commander!
+	var names = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Ghost", "Hunter"]
 	for i in range(clones_on_field.size()):
 		_apply_upgrades_to_clone(clones_on_field[i])
 		var bp = Backpack.get_backpack_for_slot(i)
 		Backpack.apply(clones_on_field[i], bp)
+		clones_on_field[i].clone_name = names[i % names.size()]
+		if i == 0:
+			clones_on_field[i].is_commander = true
+		# Give every clone a parachute for the drop!
+		clones_on_field[i].deploy_parachute()
 
-	print("Spawned ", deploy_data.size(), " clones from deploy screen!")
+	print("Spawned ", deploy_data.size(), " clones from deploy screen! 🪂 Dropping in from the sky!")
 
 func _apply_upgrades_to_clone(clone):
 	if not GameManager:
@@ -306,6 +328,7 @@ func on_clone_died(clone):
 # -----------------------------------------------
 func on_enemy_died(enemy):
 	enemies_on_field.erase(enemy)
+	_total_kills += 1
 	print("Enemies remaining: ", enemies_on_field.size())
 
 	# Boss slayer achievement!
@@ -426,14 +449,90 @@ func show_result(won: bool):
 	else:
 		SoundManager.play("defeat_sting")
 
-	# Show the result overlay on top of the battlefield
-	var result_scene = load("res://scenes/BattleResult.tscn")
-	var result = result_scene.instantiate()
-	get_tree().root.add_child(result)
-	if won:
-		result.show_victory()
-	else:
-		result.show_defeat()
+	# Show Battle Report first, then result screen
+	_show_battle_report(won)
+
+func _show_battle_report(won: bool):
+	var elapsed   = int((Time.get_ticks_msec() / 1000.0) - _battle_start_time)
+	var minutes   = elapsed / 60
+	var seconds   = elapsed % 60
+	var dog_tags  = GameManager.get_meta("dog_tags") if GameManager.has_meta("dog_tags") else 0
+	var survivors = clones_on_field.size()
+	var medals    = Medals.total_earned()
+
+	var canvas = CanvasLayer.new()
+	canvas.layer = 28
+	get_tree().root.add_child(canvas)
+
+	# Dark background
+	var bg = ColorRect.new()
+	bg.color = Color(0.05, 0.05, 0.10, 0.95)
+	bg.set_anchor(SIDE_LEFT, 0); bg.set_anchor(SIDE_RIGHT, 1)
+	bg.set_anchor(SIDE_TOP, 0);  bg.set_anchor(SIDE_BOTTOM, 1)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	canvas.add_child(bg)
+
+	var vbox = VBoxContainer.new()
+	vbox.set_anchor(SIDE_LEFT, 0.25); vbox.set_anchor(SIDE_RIGHT, 0.75)
+	vbox.set_anchor(SIDE_TOP, 0.1);  vbox.set_anchor(SIDE_BOTTOM, 0.9)
+	vbox.add_theme_constant_override("separation", 18)
+	canvas.add_child(vbox)
+
+	# Title
+	var title = Label.new()
+	title.text = "🏆 BATTLE REPORT" if won else "💀 BATTLE REPORT"
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1) if won else Color(1.0, 0.3, 0.3))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep = HSeparator.new()
+	vbox.add_child(sep)
+
+	# Stats
+	var stats = [
+		["⚔  Enemies Killed",    str(_total_kills)],
+		["⏱  Battle Time",       "%d:%02d" % [minutes, seconds]],
+		["🪖  Clones Survived",  str(survivors)],
+		["🪙  Dog Tags Collected", str(dog_tags)],
+		["🏅  Total Medals",      str(medals)],
+	]
+
+	for stat in stats:
+		var row = HBoxContainer.new()
+		var name_lbl = Label.new()
+		name_lbl.text = stat[0]
+		name_lbl.add_theme_font_size_override("font_size", 22)
+		name_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(name_lbl)
+
+		var val_lbl = Label.new()
+		val_lbl.text = stat[1]
+		val_lbl.add_theme_font_size_override("font_size", 22)
+		val_lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+		val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(val_lbl)
+		vbox.add_child(row)
+
+	var sep2 = HSeparator.new()
+	vbox.add_child(sep2)
+
+	# Continue button
+	var cont_btn = Button.new()
+	cont_btn.text = "CONTINUE ➜"
+	cont_btn.add_theme_font_size_override("font_size", 22)
+	cont_btn.pressed.connect(func():
+		canvas.queue_free()
+		var result_scene = load("res://scenes/BattleResult.tscn")
+		var result = result_scene.instantiate()
+		get_tree().root.add_child(result)
+		if won:
+			result.show_victory()
+		else:
+			result.show_defeat()
+	)
+	vbox.add_child(cont_btn)
 
 func battle_won():
 	# Check achievements

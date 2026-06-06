@@ -59,6 +59,18 @@ var rank_damage_bonus: float = 1.0
 # Custom colour (set from Battlefield after deploy)
 var custom_colour: Color = Color(0.30, 0.38, 0.16)
 
+# Phase 18a
+var clone_name: String = "Clone"
+var is_commander: bool = false
+var _name_label: Label3D = null
+
+# Parachute
+var has_parachute: bool = false
+var _chute_mesh: MeshInstance3D = null
+
+# Spy invisibility
+var is_invisible: bool = false
+
 # Medic: heal timer
 var _medic_timer: float = 0.0
 
@@ -89,10 +101,14 @@ func _ready():
 	ammo     = max_ammo
 
 	# Hide the plain capsule and build a proper plastic army man instead!
-	mesh_instance.visible = false
+	if mesh_instance:
+		mesh_instance.visible = false
 	# Use custom colour if set, otherwise default olive green
 	var build_colour = custom_colour if custom_colour != Color(0.30, 0.38, 0.16) else CLONE_COLOUR
 	body_parts = ArmyManBuilder.build(self, build_colour)
+	_add_name_label()
+	if is_commander:
+		_add_commander_hat()
 
 # -----------------------------------------------
 # Every frame — movement, shooting, AI
@@ -100,6 +116,12 @@ func _ready():
 func _physics_process(delta):
 	if not is_on_floor():
 		velocity.y -= gravity * delta
+
+	# Parachute — float down slowly, land and fold it up
+	if has_parachute:
+		velocity.y = max(velocity.y, -2.5)   # Cap fall speed
+		if is_on_floor():
+			_fold_parachute()
 
 	shoot_timer -= delta
 
@@ -117,8 +139,8 @@ func _physics_process(delta):
 	airstrike_cooldown = max(airstrike_cooldown - delta, 0.0)
 	landmine_cooldown  = max(landmine_cooldown  - delta, 0.0)
 
-	# Hold mouse OR touch fire button to spray
-	if is_player_controlled:
+	# Hold mouse OR touch fire button to spray (not while parachuting!)
+	if is_player_controlled and not has_parachute:
 		var touch = get_node_or_null("/root/TouchControls")
 		var firing = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or (touch and touch.fire_pressed)
 		if active_weapon == "arnies_raygun":
@@ -170,6 +192,11 @@ func _input(event):
 					_plant_landmine()
 				else:
 					print("Landmine not ready! Wait ", int(landmine_cooldown) + 1, " more seconds.")
+				KEY_C:
+					_place_claymore()
+				KEY_Q:
+					if special_ability == "spy":
+						_toggle_invisibility()
 
 # -----------------------------------------------
 # PLAYER MOVEMENT (WASD or arrow keys)
@@ -480,6 +507,16 @@ func _update_ability(delta: float):
 		"engineer":
 			pass
 
+	# Commander: buff all nearby clones every second
+	if is_commander:
+		_medic_timer += delta
+		if _medic_timer >= 1.0:
+			_medic_timer = 0.0
+			for c in get_tree().get_nodes_in_group("clones"):
+				if is_instance_valid(c) and c != self and global_position.distance_to(c.global_position) <= 8.0:
+					c.move_speed  = min(c.move_speed  * 1.01, 9.0)   # Tiny speed boost
+					c.rank_damage_bonus = min(c.rank_damage_bonus * 1.005, 2.5)  # Tiny damage boost
+
 	# Backpack: medkit heals 5 HP/s
 	if has_meta("medkit_active"):
 		_medic_timer += delta
@@ -568,6 +605,9 @@ func die():
 	SoundManager.play("death")
 	VoiceLines.say_death(global_position)
 	Particles.blood_splat(global_position + Vector3(0, 0.8, 0))
+	_spawn_dog_tag()
+	if is_player_controlled:
+		_show_killcam()
 	get_parent().on_clone_died(self)
 
 	# Stop the clone from moving or shooting any more
@@ -726,9 +766,108 @@ func take_player_control():
 
 func release_player_control():
 	is_player_controlled = false
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)   # Show mouse again
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	get_tree().call_group("battlefield", "exit_first_person")
 	_deactivate_laser()
+
+# -----------------------------------------------
+# PHASE 18a — DOG TAGS, COMMANDER, KILLCAM
+# -----------------------------------------------
+
+func _add_name_label():
+	_name_label = Label3D.new()
+	_name_label.text         = ("⭐ " if is_commander else "") + clone_name
+	_name_label.font_size    = 28
+	_name_label.modulate     = Color(1.0, 0.9, 0.2) if is_commander else Color(0.8, 1.0, 0.8)
+	_name_label.position     = Vector3(0, 2.2, 0)
+	_name_label.billboard    = BaseMaterial3D.BILLBOARD_ENABLED
+	_name_label.no_depth_test = true
+	add_child(_name_label)
+
+func _add_commander_hat():
+	# Big gold hat on top of the commander
+	var hat = MeshInstance3D.new()
+	var bm  = CylinderMesh.new()
+	bm.top_radius    = 0.18
+	bm.bottom_radius = 0.22
+	bm.height        = 0.45
+	hat.mesh = bm
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color     = Color(1.0, 0.82, 0.1)
+	mat.emission_enabled = true
+	mat.emission         = Color(0.6, 0.4, 0.0)
+	mat.roughness        = 0.2
+	hat.set_surface_override_material(0, mat)
+	hat.position = Vector3(0, 1.75, 0)
+	add_child(hat)
+
+func _spawn_dog_tag():
+	# Drop a little gold dog tag on the ground
+	var tag = MeshInstance3D.new()
+	var bm  = BoxMesh.new()
+	bm.size = Vector3(0.18, 0.28, 0.04)
+	tag.mesh = bm
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color     = Color(1.0, 0.82, 0.1)
+	mat.emission_enabled = true
+	mat.emission         = Color(0.5, 0.35, 0.0)
+	mat.roughness        = 0.2
+	tag.set_surface_override_material(0, mat)
+	tag.global_position = global_position + Vector3(0, 0.1, 0)
+	get_tree().root.add_child(tag)
+
+	# Collect it when a friendly clone walks over it
+	var area = Area3D.new()
+	var shape = CollisionShape3D.new()
+	shape.shape = BoxShape3D.new()
+	shape.shape.size = Vector3(0.8, 0.8, 0.8)
+	area.add_child(shape)
+	area.global_position = tag.global_position
+	get_tree().root.add_child(area)
+
+	var tag_name = clone_name
+	area.body_entered.connect(func(body):
+		if body.is_in_group("clones"):
+			var count = GameManager.get_meta("dog_tags") if GameManager.has_meta("dog_tags") else 0
+			GameManager.set_meta("dog_tags", count + 1)
+			SoundManager.play("click")
+			print("🪖 Dog tag collected! Total: ", count + 1, " (", tag_name, ")")
+			tag.queue_free()
+			area.queue_free()
+	)
+
+	# Spin and bob the tag so it's easy to spot
+	var tw = get_tree().create_tween().set_loops()
+	tw.tween_property(tag, "rotation_degrees:y", 360.0, 1.5)
+
+func _show_killcam():
+	# Slow everything WAY down
+	Engine.time_scale = 0.15
+
+	var canvas = CanvasLayer.new()
+	canvas.layer = 30
+	get_tree().root.add_child(canvas)
+
+	var lbl = Label.new()
+	lbl.text = "💀  YOU DIED"
+	lbl.add_theme_font_size_override("font_size", 72)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.1, 0.1))
+	lbl.set_anchor(SIDE_LEFT,  0.0); lbl.set_anchor(SIDE_RIGHT,  1.0)
+	lbl.set_anchor(SIDE_TOP,   0.35); lbl.set_anchor(SIDE_BOTTOM, 0.6)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	lbl.modulate.a = 0.0
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	canvas.add_child(lbl)
+
+	# Fade in the text, hold, then restore time and clean up
+	var tw = get_tree().create_tween()
+	tw.tween_property(lbl, "modulate:a", 1.0, 0.3).set_trans(Tween.TRANS_LINEAR)
+	tw.tween_interval(1.2)
+	tw.tween_callback(func():
+		Engine.time_scale = 1.0
+		canvas.queue_free()
+	)
 
 # -----------------------------------------------
 # RAYGUN LASER — 10 second continuous beam!
@@ -815,3 +954,63 @@ func _deactivate_laser():
 	if _laser_light:
 		_laser_light.queue_free()
 		_laser_light = null
+
+# -----------------------------------------------
+# PARACHUTE 🪂
+# -----------------------------------------------
+func _place_claymore():
+	var claymore = Node3D.new()
+	claymore.set_script(load("res://scripts/Claymore.gd"))
+	claymore.global_position = global_position + (-global_transform.basis.z * 1.0)
+	claymore.global_rotation = global_rotation
+	get_tree().root.add_child(claymore)
+	SoundManager.play("click")
+	print("💣 Claymore placed! Enemies that cross the laser will trigger it!")
+
+func deploy_parachute():
+	has_parachute = true
+
+	# Dome (hemisphere-ish using a sphere scaled flat)
+	_chute_mesh = MeshInstance3D.new()
+	var sm = SphereMesh.new()
+	sm.radius = 1.1
+	sm.height = 2.2
+	_chute_mesh.mesh = sm
+	_chute_mesh.scale = Vector3(1.0, 0.5, 1.0)
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.85, 0.1)   # Bright yellow chute
+	mat.roughness    = 0.9
+	_chute_mesh.set_surface_override_material(0, mat)
+	_chute_mesh.position = Vector3(0, 2.8, 0)
+	add_child(_chute_mesh)
+
+	# Strings from chute to clone (4 thin lines)
+	for i in range(4):
+		var angle = i * PI / 2.0
+		var string = MeshInstance3D.new()
+		var bm = BoxMesh.new()
+		bm.size = Vector3(0.02, 1.4, 0.02)
+		string.mesh = bm
+		var smat = StandardMaterial3D.new()
+		smat.albedo_color = Color(0.8, 0.8, 0.8)
+		string.set_surface_override_material(0, smat)
+		string.position = Vector3(cos(angle) * 0.6, 2.1, sin(angle) * 0.6)
+		add_child(string)
+		# Store strings on the chute so we can free them together
+		_chute_mesh.set_meta("string_%d" % i, string)
+
+	SoundManager.play("click")
+	print("🪂 Parachute deployed!")
+
+func _fold_parachute():
+	has_parachute = false
+	if _chute_mesh:
+		# Free the strings
+		for i in range(4):
+			if _chute_mesh.has_meta("string_%d" % i):
+				var s = _chute_mesh.get_meta("string_%d" % i)
+				if is_instance_valid(s):
+					s.queue_free()
+		_chute_mesh.queue_free()
+		_chute_mesh = null
+	print("🪂 Landed safely!")

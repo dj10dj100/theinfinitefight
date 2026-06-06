@@ -52,6 +52,12 @@ var multiplayer_on: bool = false
 # Wave mode — survive endless waves instead of one fixed battle
 var wave_mode: bool = false
 
+# Capture the Flag mode
+var ctf_mode: bool = false
+
+# Zombie mode — enemies rise from the dead!
+var zombie_mode: bool = false
+
 # Helper: get the multiplier for a stat based on upgrade level
 func get_upgrade(key: String) -> int:
 	return upgrades.get(key, 0)

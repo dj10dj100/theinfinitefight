@@ -184,7 +184,8 @@ func _enter_helicopter(clone):
 	pilot_clone     = clone
 	is_player_in    = true
 	clone.is_player_controlled = false
-	clone.visible   = false
+	if is_instance_valid(clone):
+		clone.visible = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	# Attach camera behind and above the helicopter
 	get_tree().call_group("battlefield", "enter_vehicle_view", self, Vector3(0, 4.0, 7.0))
@@ -192,14 +193,21 @@ func _enter_helicopter(clone):
 
 func _exit_helicopter():
 	is_player_in = false
-	get_tree().call_group("battlefield", "exit_vehicle_view")
 	if pilot_clone and is_instance_valid(pilot_clone):
-		pilot_clone.global_position = global_position + Vector3(2.5, 0, 0)
+		# Drop the clone at the helicopter's current height — in the sky!
+		pilot_clone.global_position = global_position + Vector3(0, 0.5, 0)
 		pilot_clone.visible         = true
 		pilot_clone.is_player_controlled = true
+		pilot_clone.velocity        = Vector3.ZERO
+		# Pop the parachute!
+		pilot_clone.deploy_parachute()
+		# Switch camera back to the clone
+		get_tree().call_group("battlefield", "enter_first_person", pilot_clone)
 		pilot_clone = null
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	print("🚁 You jumped out of the helicopter!")
+	else:
+		get_tree().call_group("battlefield", "exit_vehicle_view")
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	print("🪂 Jumped out! Parachuting down...")
 
 # -----------------------------------------------
 # Shoot from the helicopter

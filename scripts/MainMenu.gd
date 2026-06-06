@@ -165,12 +165,32 @@ func _build_middle_column():
 			"title": "⚔  NORMAL BATTLE",
 			"desc":  "Defeat all the enemies\nto win the round!",
 			"wave":  false,
+			"ctf":   false,
+			"zombie": false,
 		},
 		{
 			"key":   "waves",
 			"title": "🌊  WAVE MODE",
 			"desc":  "Survive endless waves.\nHow long can you last?",
 			"wave":  true,
+			"ctf":   false,
+			"zombie": false,
+		},
+		{
+			"key":   "ctf",
+			"title": "🚩  CAPTURE THE FLAG",
+			"desc":  "Steal the enemy flag!\nFirst to 3 captures wins!",
+			"wave":  false,
+			"ctf":   true,
+			"zombie": false,
+		},
+		{
+			"key":   "zombie",
+			"title": "🧟  ZOMBIE MODE",
+			"desc":  "Enemies rise from the dead!\nKeep shooting until they stay down!",
+			"wave":  false,
+			"ctf":   false,
+			"zombie": true,
 		},
 	]
 
@@ -186,15 +206,20 @@ func _build_middle_column():
 		btn.offset_top    = 44 + i * 100
 		btn.offset_bottom = 134 + i * 100
 		# Highlight selected mode
-		var is_wave = GameManager.wave_mode if GameManager else false
-		var selected = (m["wave"] == is_wave)
+		var is_wave   = GameManager.wave_mode   if GameManager else false
+		var is_ctf    = GameManager.ctf_mode    if GameManager else false
+		var is_zombie = GameManager.zombie_mode if GameManager else false
+		var selected  = (m["wave"] == is_wave and m["ctf"] == is_ctf and m["zombie"] == is_zombie)
 		btn.modulate = Color(0.3, 1.0, 0.5) if selected else Color(1, 1, 1)
-		var wave_val = m["wave"]
+		var wave_val   = m["wave"]
+		var ctf_val    = m["ctf"]
+		var zombie_val = m["zombie"]
 		btn.pressed.connect(func():
 			if GameManager:
-				GameManager.wave_mode = wave_val
+				GameManager.wave_mode   = wave_val
+				GameManager.ctf_mode    = ctf_val
+				GameManager.zombie_mode = zombie_val
 			SoundManager.play("click")
-			# Update highlights
 			for b in mode_btns:
 				b.modulate = Color(1, 1, 1)
 			btn.modulate = Color(0.3, 1.0, 0.5)

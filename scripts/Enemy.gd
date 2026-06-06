@@ -123,12 +123,22 @@ func _physics_process(delta):
 		target_clone = find_nearest_clone()
 
 	if target_clone != null:
-		# Kamikaze just sprints straight in and blows up!
-		if enemy_type == "kamikaze":
+		if enemy_type == "zombie":
+			# Zombies just shamble straight at clones and bite!
+			var dir = (target_clone.global_position - global_position).normalized()
+			velocity.x = dir.x * move_speed
+			velocity.z = dir.z * move_speed
+			_face_target()
+			var dist = global_position.distance_to(target_clone.global_position)
+			if dist < 1.2 and shoot_timer <= 0:
+				# BITE!
+				target_clone.take_damage(20.0)
+				shoot_timer = 1.5
+				SoundManager.play("hit")
+		elif enemy_type == "kamikaze":
 			_run_kamikaze_ai()
 		else:
 			_run_smart_ai(delta)
-			# Ninja: randomly sidestep to dodge bullets
 			if enemy_type == "ninja" and randf() < 0.02:
 				var side = Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)).normalized()
 				velocity += side * move_speed * 0.8
@@ -335,5 +345,37 @@ func die():
 	coin.global_position = global_position + Vector3(randf_range(-0.5, 0.5), 0.3, randf_range(-0.5, 0.5))
 	get_tree().root.add_child(coin)
 
+	# Zombie mode — rise from the dead after 2 seconds!
+	if GameManager and GameManager.zombie_mode and enemy_type != "zombie":
+		_rise_as_zombie()
+		return
+
 	get_parent().on_enemy_died(self)
 	queue_free()
+
+func _rise_as_zombie():
+	# Fall over first, then get back up grey and hungry!
+	set_physics_process(false)
+	var fall = get_tree().create_tween()
+	fall.tween_property(self, "rotation_degrees:x", 90.0, 0.4)
+	fall.tween_interval(1.8)
+	fall.tween_callback(func():
+		if not is_instance_valid(self): return
+		# Get back up!
+		rotation_degrees.x = 0.0
+		enemy_type = "zombie"
+		health     = 60.0
+		move_speed = 1.8   # Slow shamble
+		# Turn grey and glowing green eyes
+		for part in body_parts:
+			if is_instance_valid(part):
+				var mat = StandardMaterial3D.new()
+				mat.albedo_color     = Color(0.55, 0.60, 0.50)
+				mat.emission_enabled = true
+				mat.emission         = Color(0.0, 0.4, 0.0) * 0.5
+				mat.roughness        = 0.9
+				part.set_surface_override_material(0, mat)
+		set_physics_process(true)
+		SoundManager.play("hit")
+		print("🧟 ZOMBIE RISING!")
+	)
