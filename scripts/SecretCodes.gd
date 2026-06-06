@@ -103,7 +103,7 @@ func _trigger(code: String):
 				if info2["type"] in ["skin", "weapon"]:
 					if not info2["key"] in unlocked_skins:
 						unlocked_skins.append(info2["key"])
-				elif info2["type"] == "cheat":
+				elif info2["type"] == "cheat" and info2["key"] != "instant_win":
 					if not info2["key"] in unlocked_cheats:
 						unlocked_cheats.append(info2["key"])
 			if GameManager:

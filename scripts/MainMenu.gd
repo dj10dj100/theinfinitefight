@@ -20,18 +20,21 @@ func build_ui():
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	# ── Secret code hint (tiny, bottom of screen) ──
-	var secret_hint = Label.new()
-	secret_hint.text = "🔒 Psst... try typing secret codes on your keyboard!"
-	secret_hint.add_theme_font_size_override("font_size", 11)
-	secret_hint.add_theme_color_override("font_color", Color(0.35, 0.35, 0.45))
-	secret_hint.set_anchor(SIDE_LEFT,  0); secret_hint.set_anchor(SIDE_RIGHT,  1)
-	secret_hint.set_anchor(SIDE_TOP,   1); secret_hint.set_anchor(SIDE_BOTTOM, 1)
-	secret_hint.offset_top    = -22
-	secret_hint.offset_bottom = -4
-	secret_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	secret_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(secret_hint)
+	# ── Secret Codes button (bottom centre) ──
+	var codes_btn = Button.new()
+	codes_btn.text = "🔑  Secret Codes"
+	codes_btn.add_theme_font_size_override("font_size", 13)
+	codes_btn.set_anchor(SIDE_LEFT,  0.5); codes_btn.set_anchor(SIDE_RIGHT,  0.5)
+	codes_btn.set_anchor(SIDE_TOP,   1);   codes_btn.set_anchor(SIDE_BOTTOM, 1)
+	codes_btn.offset_left   = -90
+	codes_btn.offset_right  = 90
+	codes_btn.offset_top    = -26
+	codes_btn.offset_bottom = -4
+	codes_btn.pressed.connect(func():
+		SoundManager.play("click")
+		_open_codes_panel()
+	)
+	add_child(codes_btn)
 
 	# ── Title ──
 	var title = Label.new()
@@ -199,24 +202,6 @@ func _build_middle_column():
 		panel.add_child(btn)
 		mode_btns.append(btn)
 
-	# ── MULTIPLAYER toggle ──
-	var mp_btn = Button.new()
-	mp_btn.name = "MPBtn"
-	var mp_on = GameManager.multiplayer_on if GameManager else false
-	mp_btn.text = "🎮  2-Player Mode: " + ("ON ✅" if mp_on else "OFF ❌")
-	mp_btn.add_theme_font_size_override("font_size", 14)
-	mp_btn.set_anchor(SIDE_LEFT,   0); mp_btn.set_anchor(SIDE_RIGHT,  1)
-	mp_btn.offset_left   = 15
-	mp_btn.offset_right  = -15
-	mp_btn.offset_top    = 252
-	mp_btn.offset_bottom = 288
-	mp_btn.pressed.connect(func():
-		SoundManager.play("click")
-		if GameManager:
-			GameManager.multiplayer_on = not GameManager.multiplayer_on
-		mp_btn.text = "🎮  2-Player Mode: " + ("ON ✅" if GameManager.multiplayer_on else "OFF ❌")
-	)
-	panel.add_child(mp_btn)
 
 	# ── DIFFICULTY heading ──
 	var diff_h = Label.new()
@@ -429,3 +414,103 @@ func _build_bottom_bar():
 		get_tree().change_scene_to_file("res://scenes/DeployScreen.tscn")
 	)
 	add_child(deploy_btn)
+
+# -----------------------------------------------
+# SECRET CODES PANEL
+# -----------------------------------------------
+func _open_codes_panel():
+	var canvas = CanvasLayer.new()
+	canvas.layer = 25
+	get_tree().root.add_child(canvas)
+
+	# Dark overlay behind the panel
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.72)
+	overlay.set_anchor(SIDE_LEFT, 0); overlay.set_anchor(SIDE_RIGHT,  1)
+	overlay.set_anchor(SIDE_TOP,  0); overlay.set_anchor(SIDE_BOTTOM, 1)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	canvas.add_child(overlay)
+
+	# Panel box
+	var panel = PanelContainer.new()
+	panel.set_anchor(SIDE_LEFT,  0.5); panel.set_anchor(SIDE_RIGHT,  0.5)
+	panel.set_anchor(SIDE_TOP,   0.5); panel.set_anchor(SIDE_BOTTOM, 0.5)
+	panel.offset_left   = -260; panel.offset_right  = 260
+	panel.offset_top    = -140; panel.offset_bottom = 140
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.06, 0.12, 0.97)
+	style.border_color = Color(0.8, 0.2, 0.1)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(12)
+	panel.add_theme_stylebox_override("panel", style)
+	canvas.add_child(panel)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	# Title
+	var title_lbl = Label.new()
+	title_lbl.text = "🔑  SECRET CODES"
+	title_lbl.add_theme_font_size_override("font_size", 26)
+	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title_lbl)
+
+	# Separator
+	var sep = HSeparator.new()
+	vbox.add_child(sep)
+
+	# "Type a code:" label
+	var type_lbl = Label.new()
+	type_lbl.text = "Type a code below and press ENTER:"
+	type_lbl.add_theme_font_size_override("font_size", 14)
+	type_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	type_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(type_lbl)
+
+	# Text input row
+	var input_row = HBoxContainer.new()
+	input_row.add_theme_constant_override("separation", 8)
+	input_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(input_row)
+
+	var line_edit = LineEdit.new()
+	line_edit.placeholder_text = "Enter code here..."
+	line_edit.custom_minimum_size = Vector2(220, 36)
+	line_edit.add_theme_font_size_override("font_size", 16)
+	line_edit.secret = true
+	input_row.add_child(line_edit)
+	line_edit.grab_focus()
+
+	var submit_btn = Button.new()
+	submit_btn.text = "✅ GO!"
+	submit_btn.add_theme_font_size_override("font_size", 15)
+	input_row.add_child(submit_btn)
+
+	var _submit = func():
+		var code = line_edit.text.strip_edges().to_upper()
+		if code != "":
+			SecretCodes._typed = code
+			SecretCodes._check_codes()
+			line_edit.text = ""
+			line_edit.placeholder_text = "Code entered! ✅"
+
+	submit_btn.pressed.connect(_submit)
+	line_edit.text_submitted.connect(func(_t): _submit.call())
+
+	# Close button
+	var close_btn = Button.new()
+	close_btn.text = "✖  Close"
+	close_btn.add_theme_font_size_override("font_size", 14)
+	close_btn.pressed.connect(func():
+		SoundManager.play("click")
+		canvas.queue_free()
+	)
+	vbox.add_child(close_btn)
+
+	# Also close on overlay click
+	overlay.gui_input.connect(func(event):
+		if event is InputEventMouseButton and event.pressed:
+			canvas.queue_free()
+	)

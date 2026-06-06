@@ -43,6 +43,7 @@ var black_overlay: ColorRect
 func _ready():
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	build_ui()
+	await show_title_card()
 	play_cutscene()
 
 func build_ui():
@@ -106,6 +107,78 @@ func _input(event):
 		finish_cutscene()
 	if event is InputEventMouseButton and event.pressed:
 		finish_cutscene()
+
+# -----------------------------------------------
+# TITLE CARD — "THE INFINITE FIGHT" + blood splat
+# -----------------------------------------------
+func show_title_card():
+	if skip_requested:
+		return
+
+	# Big title text
+	var title = Label.new()
+	title.text = "THE INFINITE FIGHT"
+	title.add_theme_font_size_override("font_size", 72)
+	title.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	title.set_anchor(SIDE_LEFT,  0.0);  title.set_anchor(SIDE_RIGHT,  1.0)
+	title.set_anchor(SIDE_TOP,   0.35); title.set_anchor(SIDE_BOTTOM, 0.6)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	title.modulate.a = 0.0
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(title)
+
+	# Fade in the title slowly
+	var fade_in = create_tween()
+	fade_in.tween_property(title, "modulate:a", 1.0, 1.8)
+	await fade_in.finished
+
+	if skip_requested:
+		title.queue_free()
+		return
+
+	await get_tree().create_timer(0.4).timeout
+
+	# Blood splat explodes out from the title!
+	_spawn_title_blood_splat()
+	SoundManager.play("hit")
+
+	await get_tree().create_timer(1.6).timeout
+
+	if skip_requested:
+		title.queue_free()
+		return
+
+	# Fade out and move into the story
+	var fade_out = create_tween()
+	fade_out.tween_property(title, "modulate:a", 0.0, 0.8)
+	await fade_out.finished
+	title.queue_free()
+
+func _spawn_title_blood_splat():
+	var vp      = get_viewport_rect().size
+	var center  = Vector2(vp.x * 0.5, vp.y * 0.47)
+
+	for i in range(18):
+		var drop = ColorRect.new()
+		var w    = randf_range(8.0, 28.0)
+		var h    = randf_range(8.0, 28.0)
+		drop.size     = Vector2(w, h)
+		drop.color    = Color(randf_range(0.55, 1.0), 0.0, 0.0, 1.0)
+		drop.position = center - drop.size * 0.5   # centre it on the point
+		drop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(drop)
+
+		var angle  = randf_range(0.0, TAU)
+		var dist   = randf_range(30.0, 180.0)
+		var target = center + Vector2(cos(angle), sin(angle)) * dist - drop.size * 0.5
+
+		var tw = create_tween()
+		tw.tween_property(drop, "position", target, 0.28).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(drop, "scale", Vector2(randf_range(1.2, 2.5), randf_range(0.3, 0.9)), 0.28)
+		tw.tween_interval(0.9)
+		tw.tween_property(drop, "modulate:a", 0.0, 0.4)
+		tw.tween_callback(drop.queue_free)
 
 # -----------------------------------------------
 # PLAY THROUGH ALL THE BEATS

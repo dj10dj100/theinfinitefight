@@ -205,10 +205,12 @@ func handle_player_movement(delta):
 					else:
 						heli._try_enter_helicopter()
 
-	# Jetpack — press Space to leap into the air!
-	if has_meta("has_jetpack") and Input.is_key_pressed(KEY_SPACE) and is_on_floor():
-		velocity.y = 10.0
-		print("🚀 JETPACK!")
+	# Jump — Space to jump, jetpack backpack leaps much higher!
+	var jump_pressed = Input.is_key_pressed(KEY_SPACE) or (touch and touch.key_jump)
+	if jump_pressed and is_on_floor():
+		velocity.y = 10.0 if has_meta("has_jetpack") else 6.0
+		if has_meta("has_jetpack"):
+			print("🚀 JETPACK!")
 
 	if direction != Vector3.ZERO:
 		direction = direction.normalized()

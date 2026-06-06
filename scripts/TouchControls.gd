@@ -21,6 +21,7 @@ var key_g:        bool    = false          # Grenade button tapped
 var key_a:        bool    = false          # Airstrike button tapped
 var key_m:        bool    = false          # Mine button tapped
 var key_e:        bool    = false          # Enter/exit helicopter tapped
+var key_jump:     bool    = false          # Jump button tapped
 
 # Only show touch controls when running on a touchscreen device
 var _touch_enabled: bool = false
@@ -43,6 +44,7 @@ var _g_btn:      Button
 var _a_btn:      Button
 var _m_btn:      Button
 var _e_btn:      Button
+var _jump_btn:   Button
 var _look_zone:  Control
 
 func _ready():
@@ -128,6 +130,11 @@ func _build_ui():
 	_m_btn.pressed.connect(func(): key_m = true)
 	add_child(_m_btn)
 
+	# ---------- JUMP BUTTON (left of fire button) ----------
+	_jump_btn = _make_button("⬆️\nJUMP", Color(0.2, 0.7, 0.9, 0.8), Vector2(screen.x - 340, screen.y - 110), Vector2(90, 90))
+	_jump_btn.pressed.connect(func(): key_jump = true)
+	add_child(_jump_btn)
+
 	# ---------- HELICOPTER BUTTON (top-right) ----------
 	_e_btn = _make_button("🚁\nE", Color(0.2, 0.6, 0.2, 0.8), Vector2(screen.x - 100, 20), Vector2(80, 80))
 	_e_btn.pressed.connect(func(): key_e = true)
@@ -210,10 +217,11 @@ func _process(_delta):
 	if not _touch_enabled:
 		return
 	# One-shot buttons reset after one frame so Clone picks them up once
-	key_g = false
-	key_a = false
-	key_m = false
-	key_e = false
+	key_g    = false
+	key_a    = false
+	key_m    = false
+	key_e    = false
+	key_jump = false
 	# Look delta decays to zero when the finger stops moving
 	look_delta = Vector2.ZERO
 
