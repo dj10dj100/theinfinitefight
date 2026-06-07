@@ -82,4 +82,11 @@ func _explode():
 			var falloff = 1.0 - (dist / radius)
 			enemy.take_damage(damage * falloff)
 
+	# Blow up destructible walls too!
+	for wall in get_tree().get_nodes_in_group("destructible"):
+		if is_instance_valid(wall):
+			var dist = target_pos.distance_to(wall.global_position)
+			if dist <= radius:
+				wall.take_damage(damage * (1.0 - dist / radius))
+
 	queue_free()

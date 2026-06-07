@@ -58,4 +58,11 @@ func _explode():
 	if kills >= 3:
 		Achievements.unlock("grenade_master")
 
+	# Also damage destructible walls!
+	for wall in get_tree().get_nodes_in_group("destructible"):
+		if is_instance_valid(wall):
+			var dist = global_position.distance_to(wall.global_position)
+			if dist <= radius:
+				wall.take_damage(damage * (1.0 - dist / radius))
+
 	queue_free()

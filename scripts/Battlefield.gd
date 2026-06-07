@@ -123,6 +123,7 @@ func _ready():
 
 	# Spawn any objects placed in the Level Editor
 	_spawn_editor_objects()
+	_spawn_destructible_walls()
 
 	# Reset killstreak for the new battle
 	Killstreak.reset()
@@ -131,6 +132,7 @@ func _ready():
 	_battle_start_time = Time.get_ticks_msec() / 1000.0
 	# Start sky drop timer — a power-up crate falls every 25 seconds!
 	_start_sky_drop_timer()
+	_start_enemy_helicopter_timer()
 	Achievements.coins_spent_battle = 0
 
 	# Build the coin + upgrade HUD (top-left corner)
@@ -182,6 +184,12 @@ func spawn_clones_from_deploy(deploy_data: Array):
 			clones_on_field[i].is_commander = true
 		# Give every clone a parachute for the drop!
 		clones_on_field[i].deploy_parachute()
+		# Spawn a loyal sidekick dog!
+		var dog = CharacterBody3D.new()
+		dog.set_script(load("res://scripts/SidekickDog.gd"))
+		dog.position = clones_on_field[i].position + Vector3(0.8, 0, 0.5)
+		dog.set("owner_clone", clones_on_field[i])
+		add_child(dog)
 
 	print("Spawned ", deploy_data.size(), " clones from deploy screen! 🪂 Dropping in from the sky!")
 
@@ -606,6 +614,39 @@ func _build_coin_hud():
 		btn.pressed.connect(func(): _buy_upgrade(action, cost))
 		canvas.add_child(btn)
 
+	# --- MY CLONE upgrades (bottom section) ---
+	var my_label = Label.new()
+	my_label.text = "🎯 MY CLONE:"
+	my_label.add_theme_font_size_override("font_size", 11)
+	my_label.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
+	my_label.set_anchor(SIDE_LEFT, 0); my_label.set_anchor(SIDE_RIGHT, 0)
+	my_label.set_anchor(SIDE_TOP, 0);  my_label.set_anchor(SIDE_BOTTOM, 0)
+	my_label.offset_left = 10; my_label.offset_right = 180
+	my_label.offset_top  = 160; my_label.offset_bottom = 178
+	my_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	canvas.add_child(my_label)
+
+	var my_upgrades = [
+		{"label": "💥 2× Damage  (6💰)",  "cost": 6, "action": "my_damage"},
+		{"label": "🏃 Mega Speed (5💰)",   "cost": 5, "action": "my_speed"},
+		{"label": "❤ Full Heal   (4💰)",  "cost": 4, "action": "my_heal"},
+	]
+	for i in my_upgrades.size():
+		var u = my_upgrades[i]
+		var btn2 = Button.new()
+		btn2.text = u["label"]
+		btn2.add_theme_font_size_override("font_size", 12)
+		btn2.set_anchor(SIDE_LEFT, 0); btn2.set_anchor(SIDE_RIGHT, 0)
+		btn2.set_anchor(SIDE_TOP, 0);  btn2.set_anchor(SIDE_BOTTOM, 0)
+		btn2.offset_left  = 10
+		btn2.offset_right = 180
+		btn2.offset_top   = 182 + i * 36
+		btn2.offset_bottom = 214 + i * 36
+		var action = u["action"]
+		var cost   = u["cost"]
+		btn2.pressed.connect(func(): _buy_upgrade(action, cost))
+		canvas.add_child(btn2)
+
 func _buy_upgrade(action: String, cost: int):
 	if battle_coins < cost:
 		print("Not enough coins! Need ", cost, ", have ", battle_coins)
@@ -633,6 +674,19 @@ func _buy_upgrade(action: String, cost: int):
 			"buy_shield":
 				clone.activate_shield(2)
 				print("🛡 All clones got a shield!")
+
+	# My clone upgrades — only affect the controlled clone
+	if controlled_clone and is_instance_valid(controlled_clone):
+		match action:
+			"my_damage":
+				controlled_clone.rank_damage_bonus = min(controlled_clone.rank_damage_bonus * 2.0, 8.0)
+				print("💥 YOUR clone now deals double damage!")
+			"my_speed":
+				controlled_clone.move_speed = min(controlled_clone.move_speed * 1.8, 14.0)
+				print("🏃 YOUR clone is mega fast!")
+			"my_heal":
+				controlled_clone.health = 100.0
+				print("❤ YOUR clone fully healed!")
 
 # -----------------------------------------------
 # JEEP — spawns one jeep near the player zone
@@ -770,6 +824,32 @@ func _spawn_bush(pos: Vector3):
 	mesh.set_surface_override_material(0, mat)
 	mesh.position = pos + Vector3(0, 0.4, 0)
 	add_child(mesh)
+
+# -----------------------------------------------
+# DESTRUCTIBLE WALLS — scattered across the mid-field
+# -----------------------------------------------
+func _start_enemy_helicopter_timer():
+	await get_tree().create_timer(30.0).timeout
+	if battle_over:
+		return
+	var heli = CharacterBody3D.new()
+	heli.set_script(load("res://scripts/EnemyHelicopter.gd"))
+	heli.position = Vector3(15, 8, 15)
+	add_child(heli)
+	enemies_on_field.append(heli)
+
+func _spawn_destructible_walls():
+	var wall_positions = [
+		Vector3(-6, 0, 0), Vector3(0, 0, 2), Vector3(6, 0, 0),
+		Vector3(-4, 0, 4), Vector3(4, 0, 4),
+	]
+	for pos in wall_positions:
+		var wall = StaticBody3D.new()
+		wall.set_script(load("res://scripts/DestructibleWall.gd"))
+		wall.position = pos
+		# Random rotation so walls aren't all parallel
+		wall.rotation.y = randf_range(-0.4, 0.4)
+		add_child(wall)
 
 # -----------------------------------------------
 # ENEMY DIED — tell WaveManager if wave mode is on

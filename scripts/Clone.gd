@@ -958,6 +958,24 @@ func _deactivate_laser():
 # -----------------------------------------------
 # PARACHUTE 🪂
 # -----------------------------------------------
+func _toggle_invisibility():
+	is_invisible = not is_invisible
+	var alpha = 0.15 if is_invisible else 1.0
+	for part in body_parts:
+		if is_instance_valid(part):
+			var mat = part.get_surface_override_material(0)
+			if mat == null:
+				mat = StandardMaterial3D.new()
+			mat.flags_transparent = is_invisible
+			mat.albedo_color.a    = alpha
+			part.set_surface_override_material(0, mat)
+	if _name_label:
+		_name_label.modulate.a = alpha
+	if is_invisible:
+		print("🕵️ Gone invisible! Enemies can't see you.")
+	else:
+		print("👁 Visible again!")
+
 func _place_claymore():
 	var claymore = Node3D.new()
 	claymore.set_script(load("res://scripts/Claymore.gd"))

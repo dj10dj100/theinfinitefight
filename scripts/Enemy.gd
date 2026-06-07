@@ -283,6 +283,9 @@ func find_nearest_clone() -> Node:
 	var nearest = null
 	var nearest_dist = INF
 	for clone in clones:
+		# Skip invisible spy clones!
+		if clone.get("is_invisible") == true:
+			continue
 		var dist = global_position.distance_to(clone.global_position)
 		if dist < nearest_dist:
 			nearest_dist = dist
