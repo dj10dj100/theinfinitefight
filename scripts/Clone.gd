@@ -192,11 +192,11 @@ func _input(event):
 					_plant_landmine()
 				else:
 					print("Landmine not ready! Wait ", int(landmine_cooldown) + 1, " more seconds.")
-				KEY_C:
-					_place_claymore()
-				KEY_Q:
-					if special_ability == "spy":
-						_toggle_invisibility()
+			KEY_C:
+				_place_claymore()
+			KEY_Q:
+				if special_ability == "spy":
+					_toggle_invisibility()
 
 # -----------------------------------------------
 # PLAYER MOVEMENT (WASD or arrow keys)
